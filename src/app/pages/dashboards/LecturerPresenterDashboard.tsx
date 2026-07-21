@@ -290,8 +290,8 @@ export function LecturerPresenterDashboard({
 
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => alert("Meeting QR Code shared!")} className="bg-slate-900 border border-white/10 hover:border-primary text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer">Share QR</button>
-                  <button onClick={() => setLivePoll(prev => ({ ...prev, isActive: !prev.isActive }))} className="bg-primary text-white hover:opacity-90 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">
-                    {livePoll.isActive ? "End Poll" : "Launch Poll"}
+                  <button onClick={() => setLivePoll(prev => prev ? ({ ...prev, isActive: !prev.isActive }) : { question: "Quick Check", options: ["Yes", "No"], votes: [0, 0], isActive: true })} className="bg-primary text-white hover:opacity-90 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">
+                    {livePoll?.isActive ? "End Poll" : "Launch Poll"}
                   </button>
                   <button onClick={() => setPulseScore(Math.floor(70 + Math.random() * 30))} className="bg-cyan-500 text-white hover:opacity-90 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">
                     Pulse Check

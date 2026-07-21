@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { OrgType, Role } from '../app/types';
 import { supabase } from '../lib/supabase';
 
@@ -24,28 +25,36 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  org: 'education',
-  role: 'admin',
-  isAuthenticated: false,
-  isLoading: false,
-  
-  setUser: (user) => set({ user, isAuthenticated: !!user }),
-  
-  setOrg: (org) => set({ org }),
-  
-  setRole: (role) => set({ role }),
-  
-  updateUser: (updates) => set((state) => ({ 
-    user: state.user ? { ...state.user, ...updates } : null 
-  })),
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      org: 'education',
+      role: 'admin',
+      isAuthenticated: false,
+      isLoading: false,
+      
+      setUser: (user) => set({ user, isAuthenticated: !!user }),
+      
+      setOrg: (org) => set({ org }),
+      
+      setRole: (role) => set({ role }),
+      
+      updateUser: (updates) => set((state) => ({ 
+        user: state.user ? { ...state.user, ...updates } : null 
+      })),
 
-  logout: async () => {
-    await supabase.auth.signOut();
-    set({ user: null, isAuthenticated: false });
-  },
-}));
+      logout: async () => {
+        await supabase.auth.signOut();
+        set({ user: null, isAuthenticated: false });
+      },
+    }),
+    {
+      name: 'auth-storage',
+      partialize: (state) => ({ org: state.org, role: state.role }),
+    }
+  )
+);
 
 // Setup auth listener outside of the store to sync state
 supabase.auth.onAuthStateChange(async (event, session) => {

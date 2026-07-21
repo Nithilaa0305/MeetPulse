@@ -21,14 +21,18 @@ export function AuthPage({
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     setError(null);
+    setSuccessMsg(null);
     setLoading(true);
 
     try {
+      // TEMPORARY BYPASS AUTHENTICATION
       if (mode === "register") {
-        const { error: signUpError } = await supabase.auth.signUp({
+        /*
+        const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -38,14 +42,17 @@ export function AuthPage({
           }
         });
         if (signUpError) throw signUpError;
-        alert("Registration successful! Check your email to verify your account (if enabled), or continue to setup.");
+        */
+        
         onNext();
       } else {
+        /*
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (signInError) throw signInError;
+        */
         onNext();
       }
     } catch (err: any) {
@@ -65,6 +72,12 @@ export function AuthPage({
         {error && (
           <div className="bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs p-3 rounded-xl mb-4 text-center font-semibold">
             {error}
+          </div>
+        )}
+
+        {successMsg && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs p-3.5 rounded-xl mb-4 text-center font-medium leading-relaxed">
+            {successMsg}
           </div>
         )}
 

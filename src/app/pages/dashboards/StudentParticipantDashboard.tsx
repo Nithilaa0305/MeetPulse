@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "motion/react";
 import { Play, Check, QrCode, ShieldAlert, ThumbsUp } from "lucide-react";
 import { Session, LiveQuestion, LivePoll } from "../../types";
+import { useAuthStore } from "../../../store/useAuthStore";
 
 export function StudentParticipantDashboard({
   activeTab,
@@ -44,12 +45,15 @@ export function StudentParticipantDashboard({
   upvoteQuestion: (i: string) => void;
   liveQuestions: LiveQuestion[];
 }) {
+  const user = useAuthStore((state) => state.user);
+  const userName = user?.name || "Student";
+
   if (activeTab === "overview") {
     return (
       <div className="space-y-6">
         <div className="bg-gradient-to-br from-indigo-950/60 to-[#111827] border border-indigo-500/15 rounded-3xl p-6">
           <p className="text-xs text-indigo-400 font-semibold mb-1">Student Portal</p>
-          <h2 className="text-2xl font-bold text-white">Welcome back, John Smith!</h2>
+          <h2 className="text-2xl font-bold text-white">Welcome back, {userName}!</h2>
           <p className="text-xs text-slate-400 mt-1">CS401 Lecture is live now. Scan the QR code or click join below to synchronize.</p>
           <button 
             onClick={() => setActiveTab("join")}
@@ -257,7 +261,7 @@ export function StudentParticipantDashboard({
                         const text = (document.getElementById("stuQText") as HTMLInputElement).value;
                         const anon = (document.getElementById("stuAnon") as HTMLInputElement).checked;
                         if (text) {
-                          askQuestion(text, anon, "John Smith");
+                          askQuestion(text, anon, userName);
                           (document.getElementById("stuQText") as HTMLInputElement).value = "";
                           alert("Question sent instantly to presenter's dashboard!");
                         }
