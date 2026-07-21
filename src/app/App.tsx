@@ -45,7 +45,7 @@ function AppRoutes() {
   const location = useLocation();
   
   // Zustand State
-  const { org, role, setOrg, setRole, login, logout, user } = useAuthStore();
+  const { org, role, setOrg, setRole, logout, user } = useAuthStore();
   const [theme, setTheme] = React.useState<"dark" | "light">((typeof window !== "undefined" && localStorage.getItem("meetpulse-theme") as "dark" | "light") || "dark");
   const [showSimulator, setShowSimulator] = React.useState(false);
   const viewportMode = "desktop"; // Hardcoded for now as it was in original
