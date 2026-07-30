@@ -10,11 +10,11 @@ interface DataState {
   sessions: Session[];
   
   // Basic mutators
-  setStudents: (students: Student[]) => void;
-  setLecturers: (lecturers: Lecturer[]) => void;
-  setCourses: (courses: Course[]) => void;
-  setEmployees: (employees: Employee[]) => void;
-  setSessions: (sessions: Session[]) => void;
+  setStudents: (students: Student[] | ((prev: Student[]) => Student[])) => void;
+  setLecturers: (lecturers: Lecturer[] | ((prev: Lecturer[]) => Lecturer[])) => void;
+  setCourses: (courses: Course[] | ((prev: Course[]) => Course[])) => void;
+  setEmployees: (employees: Employee[] | ((prev: Employee[]) => Employee[])) => void;
+  setSessions: (sessions: Session[] | ((prev: Session[]) => Session[])) => void;
 
   // Real Database Fetching
   fetchData: (orgId: string | null) => Promise<void>;
@@ -27,11 +27,21 @@ export const useDataStore = create<DataState>((set) => ({
   employees: [],
   sessions: [],
 
-  setStudents: (students) => set({ students }),
-  setLecturers: (lecturers) => set({ lecturers }),
-  setCourses: (courses) => set({ courses }),
-  setEmployees: (employees) => set({ employees }),
-  setSessions: (sessions) => set({ sessions }),
+  setStudents: (students) => set((state) => ({ 
+    students: typeof students === 'function' ? students(state.students) : students 
+  })),
+  setLecturers: (lecturers) => set((state) => ({ 
+    lecturers: typeof lecturers === 'function' ? lecturers(state.lecturers) : lecturers 
+  })),
+  setCourses: (courses) => set((state) => ({ 
+    courses: typeof courses === 'function' ? courses(state.courses) : courses 
+  })),
+  setEmployees: (employees) => set((state) => ({ 
+    employees: typeof employees === 'function' ? employees(state.employees) : employees 
+  })),
+  setSessions: (sessions) => set((state) => ({ 
+    sessions: typeof sessions === 'function' ? (sessions as any)(state.sessions) : sessions 
+  })),
 
   fetchData: async (orgId) => {
     try {

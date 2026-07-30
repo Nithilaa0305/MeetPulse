@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { OrgType, Role } from "../types";
 import { GlowOrbs } from "../components/common/CommonUI";
 import { GraduationCap, Briefcase, Building, Mic, Users } from "lucide-react";
+import { supabase } from "../../lib/supabase";
+import { useAuthStore } from "../../store/useAuthStore";
 
 export function OrgSelectPage({ onSelect }: { onSelect: (o: OrgType) => void }) {
   return (
@@ -56,23 +59,84 @@ export function RoleSelectPage({ org, onSelect }: { org: OrgType; onSelect: (r: 
 }
 
 export function DetailsPage({ org, role, onNext }: { org: OrgType; role: Role; onNext: () => void }) {
+  const [orgName, setOrgName] = useState("");
+  const [department, setDepartment] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const user = useAuthStore((state) => state.user);
+
+  const handleSubmit = async () => {
+    if (!user) {
+      // If user is null, they might have skipped login somehow, just proceed
+      onNext();
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { error: upsertError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: user.email,
+          org_type: org,
+          role: role,
+          organization_name: orgName,
+          department: department,
+          full_name: user.name
+        });
+        
+      if (upsertError) throw upsertError;
+      
+      onNext();
+    } catch (err: any) {
+      console.error("Error saving profile:", err);
+      setError(err.message || "Failed to save profile details.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-6 relative">
       <GlowOrbs />
       <div className="w-full max-w-md bg-card border border-border rounded-3xl p-8 relative z-10 shadow-2xl">
         <h2 className="text-2xl font-bold mb-1 text-center">Complete Profile</h2>
         <p className="text-xs text-muted-foreground text-center mb-6">Enter metadata parameters</p>
+        
+        {error && (
+          <div className="bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs p-3 rounded-xl mb-4 text-center font-semibold">
+            {error}
+          </div>
+        )}
+
         <div className="space-y-4">
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">ORGANIZATION NAME</label>
-            <input placeholder={org === "education" ? "Stanford University" : "Stripe Inc."} className="w-full bg-input rounded-xl border border-border px-4 py-3 text-sm focus:border-primary/50 outline-none" />
+            <input 
+              value={orgName}
+              onChange={e => setOrgName(e.target.value)}
+              placeholder={org === "education" ? "Stanford University" : "Stripe Inc."} 
+              className="w-full bg-input rounded-xl border border-border px-4 py-3 text-sm focus:border-primary/50 outline-none" 
+            />
           </div>
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">DEPARTMENT</label>
-            <input placeholder="Computer Science" className="w-full bg-input rounded-xl border border-border px-4 py-3 text-sm focus:border-primary/50 outline-none" />
+            <input 
+              value={department}
+              onChange={e => setDepartment(e.target.value)}
+              placeholder="Computer Science" 
+              className="w-full bg-input rounded-xl border border-border px-4 py-3 text-sm focus:border-primary/50 outline-none" 
+            />
           </div>
-          <button onClick={onNext} className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg hover:opacity-90 active:scale-95 transition-all cursor-pointer">
-            Enter Workspace
+          <button 
+            onClick={handleSubmit} 
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg hover:opacity-90 active:scale-95 transition-all cursor-pointer disabled:opacity-50">
+            {loading ? "Saving..." : "Enter Workspace"}
           </button>
         </div>
       </div>

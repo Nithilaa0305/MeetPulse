@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { LiveQuestion, LivePoll } from '../app/types';
+import { LiveQuestion, LivePoll, TranscriptSegment } from '../app/types';
 
 interface MeetingState {
   liveSessionId: string | null;
@@ -15,6 +15,9 @@ interface MeetingState {
   livePoll: LivePoll | null;
   confusionAlerts: string[];
   activityFeed: { time: string; text: string }[];
+  transcript: TranscriptSegment[];
+  transcriptionStatus: 'idle' | 'listening' | 'transcribing' | 'completed';
+  activeDocumentName: string | null;
 
   // Actions
   setLiveSessionId: (id: string | null) => void;
@@ -27,6 +30,11 @@ interface MeetingState {
   triggerReaction: (emoji: string) => void;
   addConfusionAlert: (alert: string) => void;
   addActivity: (activity: { time: string; text: string }) => void;
+
+  setTranscriptionStatus: (status: 'idle' | 'listening' | 'transcribing' | 'completed') => void;
+  addTranscriptSegment: (segment: Omit<TranscriptSegment, 'id'>) => void;
+  clearTranscripts: () => void;
+  setActiveDocumentName: (name: string | null) => void;
 }
 
 export const useMeetingStore = create<MeetingState>((set) => ({
@@ -43,6 +51,9 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   livePoll: null,
   confusionAlerts: [],
   activityFeed: [],
+  transcript: [],
+  transcriptionStatus: 'idle',
+  activeDocumentName: null,
 
   setLiveSessionId: (id) => set({ liveSessionId: id }),
   setCurrentSlide: (slide) => set({ currentSlide: slide }),
@@ -80,5 +91,12 @@ export const useMeetingStore = create<MeetingState>((set) => ({
 
   addActivity: (activity) => set((state) => ({
     activityFeed: [activity, ...state.activityFeed]
-  }))
+  })),
+
+  setTranscriptionStatus: (status) => set({ transcriptionStatus: status }),
+  addTranscriptSegment: (segment) => set((state) => ({
+    transcript: [...state.transcript, { ...segment, id: `t-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }]
+  })),
+  clearTranscripts: () => set({ transcript: [] }),
+  setActiveDocumentName: (name) => set({ activeDocumentName: name })
 }));

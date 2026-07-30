@@ -50,6 +50,10 @@ export interface Session {
   link: string;
   slidesCount: number;
   meetingId: string;
+  allowGuest?: boolean;
+  slides?: string[];
+  presentationFile?: string;
+  materials?: { name: string; size: string; type: string; url?: string; textContents?: string; slidesText?: string[][] }[];
 }
 
 export interface LiveQuestion {
@@ -78,3 +82,13 @@ export interface Employee {
   manager: string;
   status: string;
 }
+
+export interface TranscriptSegment {
+  id: string;
+  speaker: string;
+  text: string;
+  timestamp: string;
+  confidence: number;
+  slide: number;
+}
+

@@ -21,6 +21,7 @@ import { useMeetingStore } from "../store/useMeetingStore";
 import { useDataStore } from "../store/useDataStore";
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
+import { supabase } from "../lib/supabase";
 
 export function AppShell() {
   const navigate = useNavigate();
@@ -30,7 +31,21 @@ export function AppShell() {
   const currentUser = user || { name: "Guest", email: "" };
   const setCurrentUser = (updates: any) => updateUser(updates);
   const onLogout = async () => { await logout(); navigate('/'); };
-  const onDeleteAccount = async () => { await logout(); navigate('/'); };
+  const onDeleteAccount = async () => {
+    try {
+      const { error } = await supabase.rpc('delete_user');
+      if (error) {
+        console.error("Error deleting account:", error);
+        alert("Failed to delete account. Make sure the delete_user RPC function is set up in Supabase.");
+        return;
+      }
+      await logout();
+      navigate('/');
+    } catch (err) {
+      console.error(err);
+      alert("An unexpected error occurred while deleting your account.");
+    }
+  };
 
   // Data Store
   const { 
@@ -48,7 +63,7 @@ export function AppShell() {
     audienceCount, setAudienceCount, liveQuestions, 
     liveReactions, triggerReaction, livePoll, 
     askQuestion, pulseScore, speakingPace, 
-    activityFeed
+    activityFeed, activeDocumentName, setActiveDocumentName
   } = useMeetingStore();
 
   // Temporary local states for things not yet in store
@@ -423,6 +438,8 @@ export function AppShell() {
               setSessions={setSessions}
               presAnalyticsTab={presAnalyticsTab}
               setPresAnalyticsTab={setPresAnalyticsTab}
+              activeDocumentName={activeDocumentName}
+              setActiveDocumentName={setActiveDocumentName}
             />
           )}
 
@@ -447,6 +464,9 @@ export function AppShell() {
               askQuestion={askQuestion}
               upvoteQuestion={upvoteQuestion}
               liveQuestions={liveQuestions}
+              sessions={sessions}
+              activeDocumentName={activeDocumentName}
+              setActiveDocumentName={setActiveDocumentName}
             />
           )}
 

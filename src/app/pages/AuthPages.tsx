@@ -29,9 +29,7 @@ export function AuthPage({
     setLoading(true);
 
     try {
-      // TEMPORARY BYPASS AUTHENTICATION
       if (mode === "register") {
-        /*
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
@@ -42,17 +40,33 @@ export function AuthPage({
           }
         });
         if (signUpError) throw signUpError;
-        */
         
-        onNext();
+        if (data?.session) {
+          // Auto logged in!
+          onNext();
+        } else {
+          setSuccessMsg("Account created successfully! Check your inbox to verify your email, or try logging in.");
+        }
       } else {
-        /*
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { error: signInError, data: authData } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (signInError) throw signInError;
-        */
+        
+        if (authData.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authData.user.id)
+            .single();
+            
+          if (profile?.org_type && profile?.role) {
+            onDirectApp ? onDirectApp() : onNext();
+            return;
+          }
+        }
+        
         onNext();
       }
     } catch (err: any) {

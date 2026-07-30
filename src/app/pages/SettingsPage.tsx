@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { Sparkles, Zap, ShieldAlert, LogOut } from "lucide-react";
+import { Sparkles, Zap, ShieldAlert, LogOut, KeyRound } from "lucide-react";
 import { Role, OrgType } from "../types";
+import { supabase } from "../../lib/supabase";
 
 export function SettingsPage({
   currentUser,
@@ -20,6 +21,28 @@ export function SettingsPage({
 }) {
   const [editName, setEditName] = useState(currentUser.name);
   const [editEmail, setEditEmail] = useState(currentUser.email);
+  const [newPassword, setNewPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      alert("Password must be at least 6 characters long.");
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      alert("Password updated successfully!");
+      setNewPassword("");
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Failed to update password.");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto space-y-6">
@@ -86,6 +109,33 @@ export function SettingsPage({
             <div className="flex justify-end pt-2">
               <button type="submit" className="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-primary/20 transition-all cursor-pointer">
                 Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div className="md:col-span-2 bg-card border border-border rounded-3xl p-6 space-y-5 shadow-lg">
+          <div className="flex items-center gap-2 border-b border-border pb-3">
+            <KeyRound className="w-4 h-4 text-indigo-400" />
+            <h3 className="font-bold text-sm text-foreground">Security Settings</h3>
+          </div>
+
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">New Password</label>
+              <input 
+                type="password" 
+                value={newPassword} 
+                onChange={e => setNewPassword(e.target.value)} 
+                placeholder="Enter new password"
+                className="w-full bg-input border border-border px-4 py-3 text-xs rounded-xl outline-none focus:border-indigo-500 transition-all font-medium" 
+              />
+              <p className="text-[10px] text-muted-foreground">Must be at least 6 characters long.</p>
+            </div>
+            
+            <div className="flex justify-end pt-2">
+              <button disabled={isChangingPassword} type="submit" className="bg-primary hover:bg-primary/90 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-primary/20 transition-all cursor-pointer">
+                {isChangingPassword ? "Updating..." : "Update Password"}
               </button>
             </div>
           </form>

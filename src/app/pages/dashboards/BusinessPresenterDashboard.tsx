@@ -1,6 +1,7 @@
 import React from "react";
 import { Calendar, UserCheck, Activity, Layers, ShieldAlert, QrCode } from "lucide-react";
 import { StatCard } from "../../components/common/CommonUI";
+import { QRCodeSVG } from "qrcode.react";
 
 export function BusinessPresenterDashboard({
   activeTab,
@@ -23,6 +24,10 @@ export function BusinessPresenterDashboard({
   triggerReaction: (e: string) => void;
   askQuestion: (t: string, a: boolean, n: string) => void;
 }) {
+  const meetingId = liveSessionId === "SESS-102" ? "847-192-302" : "983-294-811";
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://meetpulse.live";
+  const joinUrl = `${origin}/join?meetingId=${meetingId}`;
+
   if (activeTab === "overview") {
     return (
       <div className="space-y-6">
@@ -111,8 +116,8 @@ export function BusinessPresenterDashboard({
 
             <div className="bg-card border border-border rounded-3xl p-5 space-y-4">
               <h4 className="font-bold text-xs uppercase tracking-wider text-primary text-center">Meeting QR Scanner Code</h4>
-              <div className="mx-auto bg-white p-2 rounded-xl w-32 h-32 flex items-center justify-center border border-border">
-                <QrCode className="w-24 h-24 text-slate-900" />
+              <div className="mx-auto bg-white p-3 rounded-xl w-32 h-32 flex items-center justify-center border border-border">
+                <QRCodeSVG value={joinUrl} size={104} />
               </div>
               <div className="p-3 bg-muted/10 border border-border rounded-xl text-xs space-y-2">
                 <p className="font-semibold text-center">Employee Attendance Score Metrics</p>

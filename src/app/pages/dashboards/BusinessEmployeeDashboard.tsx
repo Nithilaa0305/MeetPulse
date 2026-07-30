@@ -1,6 +1,8 @@
 import React from "react";
 import { ShieldAlert } from "lucide-react";
 
+import { useAuthStore } from "../../../store/useAuthStore";
+
 export function BusinessEmployeeDashboard({
   activeTab,
   liveSessionId,
@@ -16,12 +18,15 @@ export function BusinessEmployeeDashboard({
   triggerReaction: (e: string) => void;
   askQuestion: (t: string, a: boolean, n: string) => void;
 }) {
+  const user = useAuthStore(state => state.user);
+  const userName = user?.name || "Employee";
+
   if (activeTab === "overview") {
     return (
       <div className="space-y-6">
         <div className="bg-gradient-to-br from-blue-950/40 to-[#111827] border border-blue-500/15 rounded-3xl p-6">
           <p className="text-xs text-blue-400 font-semibold mb-1">Employee Portal</p>
-          <h2 className="text-2xl font-bold text-white">Hello, Alex Thompson!</h2>
+          <h2 className="text-2xl font-bold text-white">Hello, {userName}!</h2>
           <p className="text-xs text-slate-400 mt-1">2 meetings scheduled for today. Sync with the team Boardroom live.</p>
         </div>
 
@@ -87,7 +92,7 @@ export function BusinessEmployeeDashboard({
               <button onClick={() => {
                 const text = (document.getElementById("bizQText") as HTMLInputElement).value;
                 if (text) {
-                  askQuestion(text, false, "Alex Thompson");
+                  askQuestion(text, false, userName);
                   (document.getElementById("bizQText") as HTMLInputElement).value = "";
                   alert("Question submitted!");
                 }

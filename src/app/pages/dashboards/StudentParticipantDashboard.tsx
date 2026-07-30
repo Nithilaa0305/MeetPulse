@@ -3,6 +3,9 @@ import { motion } from "motion/react";
 import { Play, Check, QrCode, ShieldAlert, ThumbsUp } from "lucide-react";
 import { Session, LiveQuestion, LivePoll } from "../../types";
 import { useAuthStore } from "../../../store/useAuthStore";
+import { LiveTranscriptionPanel } from "../../components/ui/LiveTranscriptionPanel";
+import { DocxRenderer } from "../../components/ui/DocxRenderer";
+import { PptxRenderer } from "../../components/ui/PptxRenderer";
 
 export function StudentParticipantDashboard({
   activeTab,
@@ -23,7 +26,10 @@ export function StudentParticipantDashboard({
   submitVote,
   askQuestion,
   upvoteQuestion,
-  liveQuestions
+  liveQuestions,
+  sessions,
+  activeDocumentName,
+  setActiveDocumentName
 }: {
   activeTab: string;
   setActiveTab: (t: string) => void;
@@ -44,9 +50,15 @@ export function StudentParticipantDashboard({
   askQuestion: (t: string, a: boolean, n: string) => void;
   upvoteQuestion: (i: string) => void;
   liveQuestions: LiveQuestion[];
+  sessions: Session[];
+  activeDocumentName: string | null;
+  setActiveDocumentName: (name: string | null) => void;
 }) {
   const user = useAuthStore((state) => state.user);
   const userName = user?.name || "Student";
+  const currentSession = sessions.find(s => s.id === liveSessionId) || sessions[0];
+  const activeSlideIndex = isSynced ? currentSlide : localSlide;
+  const activeMaterial = currentSession?.materials?.find(m => m.name === activeDocumentName) || currentSession?.materials?.[0];
 
   if (activeTab === "overview") {
     return (
@@ -155,9 +167,14 @@ export function StudentParticipantDashboard({
             <div className="lg:col-span-2 space-y-4">
               <div className="bg-slate-950 border border-border rounded-3xl aspect-video flex flex-col justify-between p-6 relative">
                 <div className="flex justify-between items-center text-slate-300">
-                  <span className={`text-[10px] font-bold bg-slate-900 border border-white/10 px-2.5 py-1 rounded-full ${isSynced ? "animate-pulse text-indigo-400" : "text-amber-400"}`}>
-                    {isSynced ? "● SYNCHRONIZED" : "○ SELF-PACED VIEW"}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span className={`text-[10px] font-bold bg-slate-900 border border-white/10 px-2.5 py-1 rounded-full inline-block ${isSynced ? "animate-pulse text-indigo-400" : "text-amber-400"}`}>
+                      {isSynced ? "● SYNCHRONIZED" : "○ SELF-PACED VIEW"}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-mono">
+                      📂 {activeDocumentName || currentSession?.presentationFile || "Default Lecture Slides"}
+                    </span>
+                  </div>
                   <button 
                     onClick={() => {
                       setIsSynced(!isSynced);
@@ -168,20 +185,75 @@ export function StudentParticipantDashboard({
                   </button>
                 </div>
 
-                <div className="my-auto text-center space-y-3">
-                  <span className="text-[11px] font-mono text-indigo-300 uppercase tracking-widest">
-                    Slide {(isSynced ? currentSlide : localSlide) + 1} of 12
-                  </span>
-                  <h2 className="text-xl md:text-3xl font-extrabold text-white">
-                    {(isSynced ? currentSlide : localSlide) === 0 && "Slide 1: Introduction to Deep Networks"}
-                    {(isSynced ? currentSlide : localSlide) === 1 && "Slide 2: Mathematical Neuron Model"}
-                    {(isSynced ? currentSlide : localSlide) === 2 && "Slide 3: Sigmoid & ReLU Activation Functions"}
-                    {(isSynced ? currentSlide : localSlide) === 3 && "Slide 4: Forward Propagation Calculus"}
-                    {(isSynced ? currentSlide : localSlide) === 4 && "Slide 5: Neural Errors & Loss Optimization"}
-                    {(isSynced ? currentSlide : localSlide) === 5 && "Slide 6: Backpropagation Principles & Chain Rule"}
-                    {(isSynced ? currentSlide : localSlide) >= 6 && `Slide ${(isSynced ? currentSlide : localSlide) + 1}: Gradient Descent Optimization`}
-                  </h2>
-                </div>
+                {activeMaterial?.url && activeMaterial.type === "PDF" ? (
+                  <div className="w-full h-full bg-slate-900 rounded-2xl overflow-hidden border border-white/5 relative z-10 flex-grow my-2 min-h-[300px]">
+                    <iframe 
+                      src={`${activeMaterial.url}#page=${activeSlideIndex + 1}&toolbar=0&navpanes=0&scrollbar=0`} 
+                      className="w-full h-full min-h-[300px] border-none"
+                      title={activeMaterial.name}
+                    />
+                  </div>
+                ) : activeMaterial && (activeMaterial.type === "PPTX" || activeMaterial.type === "PPT") ? (
+                  <div className="w-full h-full bg-slate-900 rounded-2xl overflow-hidden border border-white/5 relative z-10 flex-grow my-2 min-h-[300px]">
+                    <PptxRenderer 
+                      name={activeMaterial.name} 
+                      url={activeMaterial.url}
+                      currentSlide={activeSlideIndex} 
+                      slidesCount={currentSession?.slidesCount || 10} 
+                      slidesText={activeMaterial.slidesText}
+                      onSlideSelect={!isSynced ? (slideNum) => {
+                        setLocalSlide(slideNum);
+                      } : undefined}
+                    />
+                  </div>
+                ) : activeMaterial && (activeMaterial.type === "DOCX" || activeMaterial.type === "DOC") && activeMaterial.url ? (
+                  <div className="w-full h-full bg-slate-900 rounded-2xl overflow-hidden border border-white/5 relative z-10 flex-grow my-2 min-h-[300px]">
+                    <DocxRenderer url={activeMaterial.url} name={activeMaterial.name} />
+                  </div>
+                ) : activeMaterial && (activeMaterial.type === "DOCX" || activeMaterial.type === "DOC" || activeMaterial.type === "TXT") ? (
+                  <div className="w-full h-full bg-white text-slate-950 rounded-2xl p-8 border border-slate-300 relative z-10 flex-grow my-2 flex flex-col justify-between overflow-y-auto min-h-[300px] shadow-inner">
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono border-b border-slate-200 pb-2">
+                      <span>Word Handout Viewer</span>
+                      <span>Page {activeSlideIndex + 1} of {currentSession?.slidesCount || 5}</span>
+                    </div>
+                    <div className="my-6 space-y-4 text-left">
+                      <h1 className="text-lg font-bold text-slate-900 border-l-4 border-indigo-600 pl-3">
+                        {activeMaterial.name.replace(/\.[^/.]+$/, "")}
+                      </h1>
+                      <div className="text-xs text-slate-700 space-y-3 leading-relaxed">
+                        <h4 className="font-bold text-slate-900">Section {activeSlideIndex + 1}: Study Materials</h4>
+                        <p>
+                          This document serves as a shared reference handout for our lecture. Presenters and participants can scroll and reference these paragraphs.
+                        </p>
+                        <p>
+                          Key equations, diagrams, and reference manuals are populated in this handbook. Please make sure to download a copy for offline revision.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-[9px] text-slate-400 text-center border-t border-slate-100 pt-2 font-mono">MeetPulse Office Document Simulator</div>
+                  </div>
+                ) : (
+                  <div className="my-auto text-center space-y-3">
+                    <span className="text-[11px] font-mono text-indigo-300 uppercase tracking-widest">
+                      Slide {activeSlideIndex + 1} of {currentSession?.slidesCount || 12}
+                    </span>
+                    <h2 className="text-xl md:text-3xl font-extrabold text-white">
+                      {currentSession?.slides ? (
+                        currentSession.slides[activeSlideIndex] || `Slide ${activeSlideIndex + 1}: Presentation Topic`
+                      ) : (
+                        <>
+                          {activeSlideIndex === 0 && "Slide 1: Introduction to Deep Networks"}
+                          {activeSlideIndex === 1 && "Slide 2: Mathematical Neuron Model"}
+                          {activeSlideIndex === 2 && "Slide 3: Sigmoid & ReLU Activation Functions"}
+                          {activeSlideIndex === 3 && "Slide 4: Forward Propagation Calculus"}
+                          {activeSlideIndex === 4 && "Slide 5: Neural Errors & Loss Optimization"}
+                          {activeSlideIndex === 5 && "Slide 6: Backpropagation Principles & Chain Rule"}
+                          {activeSlideIndex >= 6 && `Slide ${activeSlideIndex + 1}: Gradient Descent Optimization`}
+                        </>
+                      )}
+                    </h2>
+                  </div>
+                )}
 
                 <div className="flex justify-between items-center">
                   <div className="flex gap-2">
@@ -224,6 +296,7 @@ export function StudentParticipantDashboard({
                   />
                 </div>
               </div>
+              <LiveTranscriptionPanel isReadOnly={true} />
             </div>
 
             <div className="space-y-4">
@@ -246,6 +319,33 @@ export function StudentParticipantDashboard({
                   </div>
                 </div>
               )}
+
+              {/* Session Handouts & Materials */}
+              <div className="bg-card border border-border rounded-3xl p-5 space-y-3">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-primary">Session Handouts & Materials</h4>
+                {currentSession?.materials && currentSession.materials.length > 0 ? (
+                  <div className="space-y-2">
+                    {currentSession.materials.map((mat, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-xs p-2.5 bg-background border border-border rounded-xl">
+                        <div className="truncate max-w-[150px]">
+                          <p className="font-bold truncate text-foreground">{mat.name}</p>
+                          <span className="text-[9px] text-muted-foreground">{mat.type} • {mat.size}</span>
+                        </div>
+                        <button 
+                          onClick={() => alert(`Downloading ${mat.name}...`)}
+                          className="text-primary font-bold hover:underline text-[10px] cursor-pointer"
+                        >
+                          Download
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground italic text-center py-2">
+                    No handouts uploaded for this session.
+                  </p>
+                )}
+              </div>
 
               <div className="bg-card border border-border rounded-3xl p-5 space-y-4">
                 <h4 className="font-bold text-xs uppercase tracking-wider text-primary">Ask Professor a Question</h4>

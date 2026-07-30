@@ -7,6 +7,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { LoginPage, RegisterPage } from "./pages/AuthPages";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { OrgSelectPage, RoleSelectPage, DetailsPage } from "./pages/SetupPages";
+import { JoinPage } from "./pages/JoinPage";
 import { AppShell } from "./AppShell";
 
 // Zustand Stores
@@ -188,6 +189,12 @@ function AppRoutes() {
                   <DetailsPage org={org} role={role} onNext={() => {
                     navigate('/app');
                   }} />
+                </motion.div>
+              } />
+
+              <Route path="/join" element={
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <JoinPage />
                 </motion.div>
               } />
 
