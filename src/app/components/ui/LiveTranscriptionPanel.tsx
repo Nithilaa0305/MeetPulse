@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Mic, MicOff, Search, Key, Sparkles, AlertCircle, RefreshCw, Layers } from "lucide-react";
 import { useMeetingStore } from "../../../store/useMeetingStore";
+import { useDataStore } from "../../../store/useDataStore";
 import { TranscriptSegment } from "../../types";
-
+import { generateTranscriptPDF, generateAISummaryPDF, generateAIStudyNotesPDF } from "../../utils/pdfGenerator";
+import { generateLectureSummary, generateStudyNotes } from "../../utils/llmService";
 const KEYWORDS = [
   "backpropagation", "neural networks", "activation", "sigmoid", "relu", 
   "gradient descent", "calculus", "chain rule", "loss", "deep learning", 
@@ -55,12 +57,74 @@ export function LiveTranscriptionPanel({ isReadOnly = false }: { isReadOnly?: bo
     transcriptionStatus, 
     setTranscriptionStatus, 
     addTranscriptSegment, 
-    clearTranscripts 
+    clearTranscripts,
+    liveSessionId
   } = useMeetingStore();
+
+  const sessions = useDataStore((state) => state.sessions);
+  const currentSession = sessions.find((s) => s.id === liveSessionId) || sessions[0];
 
   const [searchQuery, setSearchQuery] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
+  
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleExportTranscript = () => {
+    if (transcript.length === 0) return;
+    generateTranscriptPDF({
+      meetingName: currentSession?.name || "Live Presentation Session",
+      courseName: currentSession?.course || "General Topic",
+      meetingId: currentSession?.meetingId || "000-000-000",
+      date: currentSession?.date || "Today",
+      transcript: transcript
+    });
+    setShowExportMenu(false);
+  };
+
+  const handleExportAISummary = async () => {
+    if (transcript.length === 0) return;
+    setIsGenerating(true);
+    setShowExportMenu(false);
+    try {
+      const rawText = transcript.map(t => t.text).join(" ");
+      const summaryParagraphs = await generateLectureSummary(currentSession?.course || "General Topic", rawText);
+      generateAISummaryPDF({
+        meetingName: currentSession?.name || "Live Presentation Session",
+        courseName: currentSession?.course || "General Topic",
+        meetingId: currentSession?.meetingId || "000-000-000",
+        date: currentSession?.date || "Today",
+        summaryParagraphs,
+        transcript
+      });
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to generate AI Summary");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleExportAIStudyNotes = async () => {
+    if (transcript.length === 0) return;
+    setIsGenerating(true);
+    setShowExportMenu(false);
+    try {
+      const rawText = transcript.map(t => t.text).join(" ");
+      const studyNotes = await generateStudyNotes(currentSession?.course || "General Topic", rawText);
+      generateAIStudyNotesPDF({
+        meetingName: currentSession?.name || "Live Presentation Session",
+        courseName: currentSession?.course || "General Topic",
+        meetingId: currentSession?.meetingId || "000-000-000",
+        date: currentSession?.date || "Today",
+        studyNotes
+      });
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to generate AI Study Notes");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
   
   const scrollRef = useRef<HTMLDivElement>(null);
   
@@ -99,6 +163,8 @@ export function LiveTranscriptionPanel({ isReadOnly = false }: { isReadOnly?: bo
 
 
 
+  const isMicActiveRef = useRef(false);
+
   // Start Browser Web Speech Recognition
   const startSpeechRecognition = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -108,6 +174,7 @@ export function LiveTranscriptionPanel({ isReadOnly = false }: { isReadOnly?: bo
       return;
     }
 
+    isMicActiveRef.current = true;
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
     recognition.continuous = true;
@@ -145,9 +212,12 @@ export function LiveTranscriptionPanel({ isReadOnly = false }: { isReadOnly?: bo
     };
 
     recognition.onend = () => {
-      if (transcriptionStatus === "listening") {
-        // Automatically restart if still active
-        recognition.start();
+      if (isMicActiveRef.current) {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.error("Failed to restart speech recognition:", e);
+        }
       }
     };
 
@@ -156,6 +226,7 @@ export function LiveTranscriptionPanel({ isReadOnly = false }: { isReadOnly?: bo
 
   // Stop Browser Speech Recognition
   const stopSpeechRecognition = () => {
+    isMicActiveRef.current = false;
     if (recognitionRef.current) {
       recognitionRef.current.onend = null;
       recognitionRef.current.stop();
@@ -263,13 +334,42 @@ export function LiveTranscriptionPanel({ isReadOnly = false }: { isReadOnly?: bo
           <h3 className="font-bold text-sm text-white">Live Transcription</h3>
         </div>
         
-        {/* Status Badge */}
-        <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded border border-white/10 text-slate-300">
-          {transcriptionStatus === "idle" && "Idle"}
-          {transcriptionStatus === "listening" && "Listening..."}
-          {transcriptionStatus === "transcribing" && "Processing..."}
-          {transcriptionStatus === "completed" && "Completed"}
-        </span>
+        <div className="flex items-center gap-2">
+          {transcript.length > 0 && (
+            <div className="relative">
+              <button 
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                disabled={isGenerating}
+                className="bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/30 text-emerald-300 rounded-lg px-2.5 py-1 text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGenerating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {isGenerating ? "Generating..." : "Export PDF"}
+              </button>
+              
+              {showExportMenu && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-white/10 rounded-xl shadow-2xl py-1 z-50 overflow-hidden flex flex-col">
+                  <button onClick={handleExportTranscript} className="text-left px-4 py-2 text-xs text-slate-200 hover:bg-white/5 transition-colors">
+                    📄 Transcript & Tasks
+                  </button>
+                  <button onClick={handleExportAISummary} className="text-left px-4 py-2 text-xs text-emerald-300 hover:bg-white/5 transition-colors">
+                    ✨ AI Lecture Summary
+                  </button>
+                  <button onClick={handleExportAIStudyNotes} className="text-left px-4 py-2 text-xs text-indigo-300 hover:bg-white/5 transition-colors">
+                    🧠 AI Study Notes
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Status Badge */}
+          <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded border border-white/10 text-slate-300">
+            {transcriptionStatus === "idle" && "Idle"}
+            {transcriptionStatus === "listening" && "Listening..."}
+            {transcriptionStatus === "transcribing" && "Processing..."}
+            {transcriptionStatus === "completed" && "Completed"}
+          </span>
+        </div>
       </div>
 
 
