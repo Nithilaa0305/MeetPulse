@@ -119,6 +119,11 @@ export function BusinessPresenterDashboard({
               <div className="mx-auto bg-white p-3 rounded-xl w-32 h-32 flex items-center justify-center border border-border">
                 <QRCodeSVG value={joinUrl} size={104} />
               </div>
+              <p className="text-[11px] font-bold text-center text-foreground">Meeting ID: {meetingId}</p>
+              <div className="text-[10px] text-muted-foreground border-t border-border/50 pt-2 leading-relaxed text-center">
+                <p className="font-semibold">Join from another laptop/device:</p>
+                <p className="font-mono text-indigo-300 font-bold mt-0.5 select-all">{origin.replace(/^https?:\/\//, "")}/join</p>
+              </div>
               <div className="p-3 bg-muted/10 border border-border rounded-xl text-xs space-y-2">
                 <p className="font-semibold text-center">Employee Attendance Score Metrics</p>
                 <p className="text-[10px] text-muted-foreground text-center">Score dynamically logs joining times, slide activity & poll answers.</p>

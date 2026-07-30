@@ -53,7 +53,7 @@ export interface Session {
   allowGuest?: boolean;
   slides?: string[];
   presentationFile?: string;
-  materials?: { name: string; size: string; type: string; url?: string; textContents?: string; slidesText?: string[][] }[];
+  materials?: { name: string; size: string; type: string; url?: string; fileObject?: File; textContents?: string; slidesText?: string[][] }[];
 }
 
 export interface LiveQuestion {

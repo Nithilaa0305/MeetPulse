@@ -17,6 +17,7 @@ export function JoinPage() {
 
   const [guestName, setGuestName] = useState("");
   const [session, setSession] = useState<any>(null);
+  const [inputMeetingId, setInputMeetingId] = useState("");
 
   // Find the session matching the meetingId
   useEffect(() => {
@@ -63,19 +64,53 @@ export function JoinPage() {
     navigate(`/login?redirect=/join?meetingId=${meetingId}`);
   };
 
+  const handleManualJoin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputMeetingId.trim()) {
+      navigate(`/join?meetingId=${encodeURIComponent(inputMeetingId.trim())}`);
+    }
+  };
+
   if (!meetingId) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 relative">
         <GlowOrbs />
-        <div className="w-full max-w-md bg-card border border-border rounded-3xl p-8 relative z-10 shadow-2xl space-y-6 text-center">
-          <h2 className="text-xl font-bold text-rose-400">Invalid Meeting ID</h2>
-          <p className="text-xs text-muted-foreground">Please scan a valid QR code or enter a valid join link.</p>
+        <div className="w-full max-w-md bg-card border border-border rounded-3xl p-8 relative z-10 shadow-2xl space-y-6">
           <button 
             onClick={() => navigate("/")}
-            className="w-full bg-white/5 border border-white/10 text-white py-2 rounded-xl text-xs font-semibold hover:bg-white/10 cursor-pointer"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors font-semibold cursor-pointer"
           >
-            Go to Home
+            <ArrowLeft className="w-4 h-4" /> Exit
           </button>
+          
+          <div className="text-center space-y-2">
+            <div className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto border border-primary/20">
+              <Sparkles className="w-6 h-6 animate-pulse" />
+            </div>
+            <h2 className="text-xl font-extrabold text-foreground">Join a Meeting</h2>
+            <p className="text-xs text-muted-foreground">Enter the Meeting ID displayed by the presenter to join the live session.</p>
+          </div>
+
+          <form onSubmit={handleManualJoin} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block text-center">Meeting ID</label>
+              <input 
+                type="text" 
+                required 
+                value={inputMeetingId} 
+                onChange={(e) => setInputMeetingId(e.target.value)} 
+                placeholder="e.g. 983-294-811" 
+                className="w-full bg-input rounded-xl border border-border px-4 py-3 text-xs focus:border-primary/50 outline-none text-white text-center font-mono tracking-widest text-sm" 
+              />
+            </div>
+
+            <button 
+              type="submit" 
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl font-bold text-xs shadow-lg hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              Join Session
+            </button>
+          </form>
         </div>
       </div>
     );

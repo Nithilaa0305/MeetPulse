@@ -346,10 +346,6 @@ export function LecturerPresenterDashboard({
                     if (pendingUploads === 0) {
                       setIsUploading(false);
                     }
-                    
-                    if (hasOfficeDoc) {
-                      alert("💡 Pro-Tip: Microsoft Word and PowerPoint files cannot be rendered page-by-page directly in-browser. Please convert them to PDF before uploading to view the actual slides on screen! Alternatively, you can paste the slide outline in the titles field.");
-                    }
                   }
                 }} 
                 className="w-full bg-input border border-border rounded-xl px-3 py-1.5 text-xs outline-none text-muted-foreground"
@@ -584,7 +580,11 @@ export function LecturerPresenterDashboard({
                 <div className="mx-auto bg-white p-3 rounded-xl w-32 h-32 border border-border flex items-center justify-center">
                   <QRCodeSVG value={joinUrl} size={104} />
                 </div>
-                <p className="text-[11px] font-bold text-foreground">Meeting ID: {meetingId}</p>
+                <p className="text-[11px] font-bold text-foreground mb-1">Meeting ID: {meetingId}</p>
+                <div className="text-[10px] text-muted-foreground border-t border-border/50 pt-2 leading-relaxed">
+                  <p className="font-semibold">Join from another laptop/device:</p>
+                  <p className="font-mono text-indigo-300 font-bold mt-0.5 select-all">{origin.replace(/^https?:\/\//, "")}/join</p>
+                </div>
               </div>
 
               {/* Session Handouts & Materials */}

@@ -45,7 +45,7 @@ export function StudentParticipantDashboard({
   triggerReaction: (e: string) => void;
   privateNotes: string;
   setPrivateNotes: (n: string) => void;
-  livePoll: LivePoll;
+  livePoll: LivePoll | null;
   submitVote: (i: number) => void;
   askQuestion: (t: string, a: boolean, n: string) => void;
   upvoteQuestion: (i: string) => void;
@@ -300,12 +300,12 @@ export function StudentParticipantDashboard({
             </div>
 
             <div className="space-y-4">
-              {livePoll.isActive && (
+              {livePoll?.isActive && (
                 <div className="bg-gradient-to-br from-indigo-950/40 to-background border border-primary rounded-3xl p-5 space-y-3">
                   <h4 className="font-bold text-xs uppercase text-primary tracking-wider">Active Poll Launched</h4>
-                  <p className="font-bold text-xs">{livePoll.question}</p>
+                  <p className="font-bold text-xs">{livePoll?.question}</p>
                   <div className="space-y-2">
-                    {livePoll.options.map((opt, i) => (
+                    {livePoll?.options?.map((opt, i) => (
                       <button 
                         key={i} 
                         onClick={() => {
