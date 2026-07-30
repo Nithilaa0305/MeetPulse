@@ -1,8 +1,3 @@
-
-  # Modern UI/UX Design
-
-  This is a code bundle for Modern UI/UX Design. The original project is available at https://www.figma.com/design/0DXZVTdTn3nM4YVo1cdYoq/Modern-UI-UX-Design.
-
   ## Running the code
 
   Run `npm i` to install the dependencies.
