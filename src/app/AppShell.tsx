@@ -5,6 +5,7 @@ import {
   Plus, Radio, QrCode, Brain, CheckSquare, Settings, LogOut, X, ShieldAlert, Search
 } from "lucide-react";
 import { OrgType, Role, Student, Lecturer, Course, Session, LiveQuestion, LivePoll, Employee } from "./types";
+import { socket } from "../lib/socket";
 import { CommandPalette } from "./components/CommandPalette";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SuperAdminDashboard } from "./pages/dashboards/SuperAdminDashboard";
@@ -23,7 +24,10 @@ import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { supabase } from "../lib/supabase";
 
+import { useSocketSync } from "../hooks/useSocketSync";
+
 export function AppShell() {
+  useSocketSync();
   const navigate = useNavigate();
   
   // Auth Store
@@ -61,21 +65,20 @@ export function AppShell() {
   const {
     liveSessionId, setLiveSessionId, currentSlide, setCurrentSlide, 
     audienceCount, setAudienceCount, liveQuestions, 
-    liveReactions, triggerReaction, livePoll, 
-    askQuestion, pulseScore, speakingPace, 
-    activityFeed, activeDocumentName, setActiveDocumentName
+    liveReactions, triggerReaction, livePoll, setLivePoll,
+    askQuestion, pulseScore, setPulseScore, speakingPace, 
+    activityFeed, activeDocumentName, setActiveDocumentName, activeQuiz, quizStats,
+    activeAlerts, removeAlert
   } = useMeetingStore();
 
-  // Temporary local states for things not yet in store
-  const [liveQuestionsLocal, setLiveQuestionsLocal] = useState(liveQuestions);
-  const setLiveQuestions = setLiveQuestionsLocal;
-  const [livePollLocal, setLivePollLocal] = useState(livePoll);
-  const setLivePoll = setLivePollLocal;
-  const submitVote = (idx: number) => {};
+  const submitVote = (idx: number) => {
+    if (liveSessionId) {
+      socket.emit('submit-poll-vote', { sessionId: liveSessionId, optionIndex: idx });
+    }
+  };
   const upvoteQuestion = (id: string) => {};
   const markQuestionAnswered = (id: string) => {};
-  const [pulseScoreLocal, setPulseScoreLocal] = useState(pulseScore);
-  const setPulseScore = setPulseScoreLocal;
+  
   const [speakingPaceLocal, setSpeakingPaceLocal] = useState(speakingPace);
   const setSpeakingPace = setSpeakingPaceLocal;
   const [privateNotes, setPrivateNotes] = useState("");
@@ -440,6 +443,9 @@ export function AppShell() {
               setPresAnalyticsTab={setPresAnalyticsTab}
               activeDocumentName={activeDocumentName}
               setActiveDocumentName={setActiveDocumentName}
+              quizStats={quizStats}
+              activeAlerts={activeAlerts}
+              removeAlert={removeAlert}
             />
           )}
 
@@ -467,6 +473,7 @@ export function AppShell() {
               sessions={sessions}
               activeDocumentName={activeDocumentName}
               setActiveDocumentName={setActiveDocumentName}
+              activeQuiz={activeQuiz}
             />
           )}
 

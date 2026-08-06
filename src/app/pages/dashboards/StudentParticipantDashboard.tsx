@@ -1,11 +1,12 @@
 import React from "react";
 import { motion } from "motion/react";
-import { Play, Check, QrCode, ShieldAlert, ThumbsUp } from "lucide-react";
-import { Session, LiveQuestion, LivePoll } from "../../types";
+import { Play, Check, QrCode, ShieldAlert, ThumbsUp, Brain, Download, AlertTriangle } from "lucide-react";
+import { Session, LiveQuestion, LivePoll, QuizQuestion } from "../../types";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { LiveTranscriptionPanel } from "../../components/ui/LiveTranscriptionPanel";
 import { DocxRenderer } from "../../components/ui/DocxRenderer";
 import { PptxRenderer } from "../../components/ui/PptxRenderer";
+import { socket } from "../../../lib/socket";
 
 export function StudentParticipantDashboard({
   activeTab,
@@ -29,7 +30,8 @@ export function StudentParticipantDashboard({
   liveQuestions,
   sessions,
   activeDocumentName,
-  setActiveDocumentName
+  setActiveDocumentName,
+  activeQuiz
 }: {
   activeTab: string;
   setActiveTab: (t: string) => void;
@@ -53,12 +55,33 @@ export function StudentParticipantDashboard({
   sessions: Session[];
   activeDocumentName: string | null;
   setActiveDocumentName: (name: string | null) => void;
+  activeQuiz?: QuizQuestion[];
 }) {
   const user = useAuthStore((state) => state.user);
   const userName = user?.name || "Student";
+  const [joinCode, setJoinCode] = React.useState("");
   const currentSession = sessions.find(s => s.id === liveSessionId) || sessions[0];
   const activeSlideIndex = isSynced ? currentSlide : localSlide;
   const activeMaterial = currentSession?.materials?.find(m => m.name === activeDocumentName) || currentSession?.materials?.[0];
+
+  const [showPulseCheck, setShowPulseCheck] = React.useState(false);
+  const [currentQuiz, setCurrentQuiz] = React.useState<QuizQuestion | null>(null);
+
+  React.useEffect(() => {
+    const handlePulse = () => setShowPulseCheck(true);
+    window.addEventListener('pulse-check-requested', handlePulse);
+    return () => window.removeEventListener('pulse-check-requested', handlePulse);
+  }, []);
+
+  React.useEffect(() => {
+    if (activeQuiz && activeQuiz.length > 0 && !currentQuiz) {
+      // Pick a random quiz from the broadcast
+      const randomIdx = Math.floor(Math.random() * activeQuiz.length);
+      setCurrentQuiz(activeQuiz[randomIdx]);
+    } else if (!activeQuiz || activeQuiz.length === 0) {
+      setCurrentQuiz(null);
+    }
+  }, [activeQuiz]);
 
   if (activeTab === "overview") {
     return (
@@ -125,8 +148,18 @@ export function StudentParticipantDashboard({
               <button 
                 onClick={() => {
                   setHasScannedQR(true);
-                  setLiveSessionId("SESS-101");
-                  alert("QR Scanned! Logged in immediately. Attendance is starting.");
+                  // Search for an active live session first
+                  const liveSess = sessions.find(s => s.status === 'live' || s.time?.toLowerCase().includes('live'));
+                  if (liveSess) {
+                    setLiveSessionId(liveSess.id);
+                    alert(`QR Scanned! Joined live session: "${liveSess.name}"`);
+                  } else if (sessions.length > 0) {
+                    setLiveSessionId(sessions[0].id);
+                    alert(`QR Scanned! Joined session: "${sessions[0].name}"`);
+                  } else {
+                    setLiveSessionId("SESS-101");
+                    alert("QR Scanned! Logged in immediately. Attendance is starting.");
+                  }
                   setActiveTab("live");
                 }}
                 className="bg-primary text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">
@@ -137,14 +170,25 @@ export function StudentParticipantDashboard({
         </div>
 
         <div className="space-y-3">
-          <label className="text-[10px] font-bold text-muted-foreground mb-1 block">OR ENTER MEETING ID</label>
+          <label className="text-[10px] font-bold text-muted-foreground mb-1 block">OR ENTER MEETING ID / SESSION ID</label>
           <div className="flex gap-2">
-            <input placeholder="e.g. 983-294-811" className="bg-input border border-border px-3 py-2 text-xs rounded-xl flex-1 outline-none text-center font-mono font-bold" />
+            <input 
+              placeholder="e.g. 983-294-811 or SESS-101" 
+              value={joinCode}
+              onChange={e => setJoinCode(e.target.value)}
+              className="bg-input border border-border px-3 py-2 text-xs rounded-xl flex-1 outline-none text-center font-mono font-bold" 
+            />
             <button 
               onClick={() => {
-                setLiveSessionId("SESS-101");
-                alert("Session joined successfully!");
-                setActiveTab("live");
+                const code = joinCode.trim();
+                const found = sessions.find(s => s.meetingId === code || s.id === code || s.name.toLowerCase().includes(code.toLowerCase()));
+                if (found) {
+                  setLiveSessionId(found.id);
+                  alert(`Session "${found.name}" joined successfully!`);
+                  setActiveTab("live");
+                } else {
+                  alert("Session code not found. Please double check the Meeting ID on the Presenter's screen.");
+                }
               }}
               className="bg-primary text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">Join</button>
           </div>
@@ -287,7 +331,23 @@ export function StudentParticipantDashboard({
               <div className="bg-card border border-border rounded-3xl p-5 space-y-4">
                 <h4 className="font-bold text-sm">Classroom Interaction Workbench</h4>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-muted-foreground block">YOUR PRIVATE NOTES</label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-bold text-muted-foreground block">YOUR PRIVATE NOTES</label>
+                    <button 
+                      onClick={() => {
+                        const blob = new Blob([privateNotes], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `Private_Notes_${currentSession.name.replace(/\s+/g, '_')}.txt`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="text-primary hover:text-primary/80 flex items-center gap-1 text-[10px] font-bold cursor-pointer transition-colors"
+                    >
+                      <Download className="w-3 h-3" /> Download
+                    </button>
+                  </div>
                   <textarea 
                     value={privateNotes} 
                     onChange={e => setPrivateNotes(e.target.value)} 
@@ -296,10 +356,103 @@ export function StudentParticipantDashboard({
                   />
                 </div>
               </div>
+              
+              {/* Quick Alerts */}
+              <div className="bg-card border border-border rounded-3xl p-5 space-y-4">
+                <h4 className="font-bold text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500"/> Quick Alerts</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    onClick={() => {
+                      socket.emit("student-alert", { sessionId: liveSessionId, type: "Too Fast", studentName: userName });
+                      alert("Alert sent to presenter!");
+                    }}
+                    className="bg-muted/20 border border-border hover:border-amber-500/50 p-2 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer text-left">
+                    Going too fast
+                  </button>
+                  <button 
+                    onClick={() => {
+                      socket.emit("student-alert", { sessionId: liveSessionId, type: "Not Audible", studentName: userName });
+                      alert("Alert sent to presenter!");
+                    }}
+                    className="bg-muted/20 border border-border hover:border-rose-500/50 p-2 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer text-left">
+                    Not audible
+                  </button>
+                  <button 
+                    onClick={() => {
+                      socket.emit("student-alert", { sessionId: liveSessionId, type: "Need Example", studentName: userName });
+                      alert("Alert sent to presenter!");
+                    }}
+                    className="bg-muted/20 border border-border hover:border-indigo-500/50 p-2 rounded-xl text-[10px] font-semibold transition-colors cursor-pointer text-left">
+                    Need an example
+                  </button>
+                </div>
+              </div>
+
               <LiveTranscriptionPanel isReadOnly={true} />
             </div>
 
             <div className="space-y-4">
+              {showPulseCheck && (
+                <div className="bg-gradient-to-br from-cyan-950/40 to-background border border-cyan-500 rounded-3xl p-5 space-y-3 relative overflow-hidden shadow-[0_0_15px_rgba(6,182,212,0.2)]">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
+                  <h4 className="font-bold text-xs uppercase text-cyan-400 tracking-wider">Pulse Check Request</h4>
+                  <p className="font-bold text-sm text-white">Do you understand the current material?</p>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => {
+                        socket.emit('submit-pulse', { sessionId: liveSessionId, pulseValue: 1 });
+                        setShowPulseCheck(false);
+                      }}
+                      className="flex-1 bg-card border border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 p-2.5 rounded-xl text-xs font-bold text-emerald-400 transition-colors cursor-pointer">
+                      Yes!
+                    </button>
+                    <button 
+                      onClick={() => {
+                        socket.emit('submit-pulse', { sessionId: liveSessionId, pulseValue: 0 });
+                        setShowPulseCheck(false);
+                      }}
+                      className="flex-1 bg-card border border-amber-500/30 hover:border-amber-500 hover:bg-amber-500/10 p-2.5 rounded-xl text-xs font-bold text-amber-400 transition-colors cursor-pointer">
+                      Kind of
+                    </button>
+                    <button 
+                      onClick={() => {
+                        socket.emit('submit-pulse', { sessionId: liveSessionId, pulseValue: -1 });
+                        setShowPulseCheck(false);
+                      }}
+                      className="flex-1 bg-card border border-rose-500/30 hover:border-rose-500 hover:bg-rose-500/10 p-2.5 rounded-xl text-xs font-bold text-rose-400 transition-colors cursor-pointer">
+                      No
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {currentQuiz && (
+                <div className="bg-gradient-to-br from-indigo-950/40 to-background border border-indigo-500 rounded-3xl p-5 space-y-3 relative overflow-hidden shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+                  <div className="absolute top-0 left-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                  <h4 className="font-bold text-xs uppercase text-indigo-400 tracking-wider flex items-center gap-1.5"><Brain className="w-3.5 h-3.5" /> AI Knowledge Quiz</h4>
+                  <p className="font-bold text-sm text-white">{currentQuiz.question}</p>
+                  <div className="space-y-2">
+                    {currentQuiz.options.map((opt, i) => (
+                      <button 
+                        key={i} 
+                        onClick={() => {
+                          const isCorrect = i === currentQuiz.correctAnswer;
+                          socket.emit('submit-quiz-answer', { 
+                            sessionId: liveSessionId, 
+                            questionId: currentQuiz.id, 
+                            questionText: currentQuiz.question, 
+                            isCorrect 
+                          });
+                          alert(isCorrect ? "Correct! +10 points to your class score." : "Incorrect. Check your study notes later!");
+                          setCurrentQuiz(null); // hide after answering
+                        }}
+                        className="w-full text-left bg-card border border-border hover:border-indigo-500 hover:bg-indigo-500/10 p-2.5 rounded-xl text-xs transition-colors cursor-pointer">
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {livePoll?.isActive && (
                 <div className="bg-gradient-to-br from-indigo-950/40 to-background border border-primary rounded-3xl p-5 space-y-3">
                   <h4 className="font-bold text-xs uppercase text-primary tracking-wider">Active Poll Launched</h4>

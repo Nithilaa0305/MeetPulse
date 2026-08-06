@@ -1,5 +1,12 @@
 -- MeetPulse Initial PostgreSQL Schema for Supabase
 
+DROP TABLE IF EXISTS attendance CASCADE;
+DROP TABLE IF EXISTS meetings CASCADE;
+DROP TABLE IF EXISTS groups CASCADE;
+DROP TABLE IF EXISTS organizations CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+
+
 -- 1. Profiles Table (extends default auth.users)
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users(id) PRIMARY KEY,
@@ -14,18 +21,9 @@ CREATE TABLE profiles (
 -- Enable RLS for profiles
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public profiles are viewable by everyone." ON profiles FOR SELECT USING (true);
-CREATE POLICY "Admins can view all profiles"
-  ON profiles FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles p 
-      WHERE p.id = auth.uid() 
-      AND p.role = 'admin' 
-    )
-  );
+
 
 -- TRIGGER FOR NEW USERS
--- Automatically creates a profile when a new user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
@@ -34,8 +32,8 @@ BEGIN
     new.id,
     new.raw_user_meta_data->>'full_name',
     new.email,
-    'participant', -- Default role
-    'education'    -- Default org type
+    'participant', 
+    'education'    
   );
   RETURN new;
 END;
@@ -71,15 +69,19 @@ CREATE TABLE meetings (
   presenter_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
   description TEXT,
-  platform TEXT, -- e.g., 'Zoom', 'MeetPulse Live'
+  platform TEXT, 
   status TEXT CHECK (status IN ('scheduled', 'live', 'ended')),
   scheduled_start TIMESTAMP WITH TIME ZONE,
+  materials JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Enable RLS for meetings
 ALTER TABLE meetings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Meetings are viewable by org members." ON meetings FOR SELECT USING (true);
+CREATE POLICY "Enable insert for authenticated users" ON meetings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for authenticated users" ON meetings FOR UPDATE USING (true);
+CREATE POLICY "Enable delete for authenticated users" ON meetings FOR DELETE USING (true);
 
 -- 5. Attendance Table
 CREATE TABLE attendance (
@@ -92,4 +94,40 @@ CREATE TABLE attendance (
   status TEXT CHECK (status IN ('present', 'late', 'absent'))
 );
 
--- Additional tables for polls, questions, reactions, and transcripts will follow a similar pattern.
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS organization_name text,
+ADD COLUMN IF NOT EXISTS department text,
+ADD COLUMN IF NOT EXISTS org_type text,
+ADD COLUMN IF NOT EXISTS role text,
+ADD COLUMN IF NOT EXISTS full_name text;
+
+-- 1. Drop all existing policies on the profiles table to clear the infinite recursion
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile." ON profiles;
+DROP POLICY IF EXISTS "Users can update own profile." ON profiles;
+-- Add any other DROP POLICY commands here if you know the custom names you used, 
+-- or you can manually delete them from the Authentication -> Policies tab in Supabase.
+
+-- 2. Make sure RLS is enabled
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- 3. Create safe, non-recursive policies
+CREATE POLICY "Users can view their own profile" 
+ON public.profiles FOR SELECT 
+USING ( auth.uid() = id );
+
+CREATE POLICY "Users can insert their own profile" 
+ON public.profiles FOR INSERT 
+WITH CHECK ( auth.uid() = id );
+
+CREATE POLICY "Users can update their own profile" 
+ON public.profiles FOR UPDATE 
+USING ( auth.uid() = id );
+
+CREATE OR REPLACE FUNCTION delete_user()
+  RETURNS void
+  LANGUAGE sql
+  SECURITY DEFINER
+AS $$
+  DELETE FROM auth.users WHERE id = auth.uid();
+$$;

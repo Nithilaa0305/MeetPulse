@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { motion } from "motion/react";
 import {
   UserCheck, Activity, Brain, Users, Radio, Play, Bell, ChevronLeft, ChevronRight,
-  QrCode, ThumbsUp, ShieldAlert, Plus
+  QrCode, ThumbsUp, ShieldAlert, Plus, Edit2, Trash2, AlertTriangle, X
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar } from "recharts";
 import { StatCard } from "../../components/common/CommonUI";
@@ -12,49 +12,41 @@ import { QRCodeSVG } from "qrcode.react";
 import { DocxRenderer } from "../../components/ui/DocxRenderer";
 import { PptxRenderer } from "../../components/ui/PptxRenderer";
 import { parsePptxText } from "../../utils/pptxParser";
+import { generateQuizFromTranscript, groupSimilarQuestions } from "../../utils/llmService";
 import { supabase } from "../../../lib/supabase";
 import { useMeetingStore } from "../../../store/useMeetingStore";
+import { useAuthStore } from "../../../store/useAuthStore";
+import { socket, connectSocket, disconnectSocket } from "../../../lib/socket";
 
 async function uploadToSupabaseStorage(file: File): Promise<string> {
-  const bucketName = "materials";
+  const bucketName = "Materials";
   const fileName = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
   
-  try {
-    // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
-      .from(bucketName)
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: true
-      });
-      
-    if (error) {
-      throw error;
-    }
-    
-    const { data: { publicUrl } } = supabase.storage
-      .from(bucketName)
-      .getPublicUrl(fileName);
-      
-    return publicUrl;
-  } catch (err) {
-    console.warn("Supabase upload failed, attempting fallback to tmpfiles.org...", err);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('https://tmpfiles.org/api/v1/upload', {
-        method: 'POST',
-        body: formData
-      });
-      if (!res.ok) throw new Error("Fallback upload failed");
-      const data = await res.json();
-      // Transform tmpfiles.org/12345/file.ext to tmpfiles.org/dl/12345/file.ext for direct download
-      return data.data.url.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
-    } catch (fallbackErr) {
-      console.error("Fallback upload also failed:", fallbackErr);
-      throw err; // Throw original Supabase error if fallback also fails
-    }
+  let mimeType = file.type;
+  if (!mimeType) {
+    if (file.name.toLowerCase().endsWith('.pdf')) mimeType = 'application/pdf';
+    else if (file.name.toLowerCase().endsWith('.pptx')) mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    else mimeType = 'application/octet-stream';
   }
+
+  // Upload to Supabase Storage
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: true,
+      contentType: mimeType
+    });
+    
+  if (error) {
+    throw error;
+  }
+  
+  const { data: { publicUrl } } = supabase.storage
+    .from(bucketName)
+    .getPublicUrl(fileName);
+    
+  return publicUrl;
 }
 
 export function LecturerPresenterDashboard({
@@ -89,7 +81,10 @@ export function LecturerPresenterDashboard({
   presAnalyticsTab,
   setPresAnalyticsTab,
   activeDocumentName,
-  setActiveDocumentName
+  setActiveDocumentName,
+  quizStats,
+  activeAlerts,
+  removeAlert
 }: {
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -101,8 +96,8 @@ export function LecturerPresenterDashboard({
   handleNextSlide: () => void;
   setAudienceCount: (c: number) => void;
   liveReactions: { id: number; emoji: string }[];
-  livePoll: LivePoll;
-  setLivePoll: React.Dispatch<React.SetStateAction<LivePoll>>;
+  livePoll: LivePoll | null;
+  setLivePoll: (poll: LivePoll | null) => void;
   liveQuestions: LiveQuestion[];
   markQuestionAnswered: (id: string) => void;
   pulseScore: number;
@@ -123,13 +118,141 @@ export function LecturerPresenterDashboard({
   setPresAnalyticsTab: (t: string) => void;
   activeDocumentName: string | null;
   setActiveDocumentName: (name: string | null) => void;
+  quizStats: Record<string, { correct: number; incorrect: number; question: string }>;
+  activeAlerts: { id: string; type: string; studentName: string; timestamp: Date }[];
+  removeAlert: (id: string) => void;
 }) {
   const [allowGuest, setAllowGuest] = useState(true);
   const [slideFile, setSlideFile] = useState<string>("");
   const [slideTitlesText, setSlideTitlesText] = useState<string>("");
-  const [uploadedMaterials, setUploadedMaterials] = useState<{ name: string; size: string; type: string }[]>([]);
+  const [uploadedMaterials, setUploadedMaterials] = useState<{ name: string; size: string; type: string; url?: string; localUrl?: string; fileObject?: File; textContents?: string; slidesText?: string[][] }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
+  const [isGroupingQuestions, setIsGroupingQuestions] = useState(false);
+
+  // Automatic Debounced AI Grouping for Questions
+  React.useEffect(() => {
+    if (activeTab !== "overview" || liveQuestions.length < 2 || isGroupingQuestions) return;
+
+    // Check if any grouping is needed (if there are new non-grouped questions)
+    // We assume grouped questions might have a count > 1 or specific id format.
+    // To prevent infinite loops, we'll only group if the length of liveQuestions changed recently and hasn't been grouped yet.
+    // A simple debounce:
+    const timer = setTimeout(async () => {
+      setIsGroupingQuestions(true);
+      try {
+        const grouped = await groupSimilarQuestions(liveQuestions);
+        // Only update if it actually reduced the number of questions to avoid useless renders
+        if (grouped.length !== liveQuestions.length || JSON.stringify(grouped) !== JSON.stringify(liveQuestions)) {
+          useMeetingStore.getState().setLiveQuestions(grouped);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsGroupingQuestions(false);
+      }
+    }, 5000); // 5 seconds debounce
+
+    return () => clearTimeout(timer);
+  }, [liveQuestions, activeTab, isGroupingQuestions]);
+
+  // Edit/Delete Session State & Handlers
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editCourse, setEditCourse] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [editPlatform, setEditPlatform] = useState("");
+  const [editLink, setEditLink] = useState("");
+  const [editAllowGuest, setEditAllowGuest] = useState(true);
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!window.confirm("Are you sure you want to delete this session? This action cannot be undone.")) return;
+    
+    try {
+      const { error } = await supabase
+        .from('meetings')
+        .delete()
+        .eq('id', sessionId);
+      if (error) throw error;
+    } catch (err: any) {
+      console.warn("Could not delete from cloud database, deleting locally:", err);
+      if (err.code === '42501') {
+        alert("Failed to delete session from cloud database due to Row-Level Security (RLS) policies. To enable database deletes, run this command in your Supabase SQL editor:\n\nCREATE POLICY \"Enable delete for authenticated users\" ON meetings FOR DELETE USING (true);");
+      }
+    }
+
+    setSessions(prev => {
+      const updated = prev.filter(s => s.id !== sessionId);
+      try {
+        localStorage.setItem('meetpulse_local_sessions', JSON.stringify(updated));
+      } catch (e) {
+        console.error("Local storage delete save failed", e);
+      }
+      return updated;
+    });
+
+    if (liveSessionId === sessionId) {
+      setLiveSessionId(null);
+    }
+  };
+
+  const handleStartEdit = (s: Session) => {
+    setEditingSession(s);
+    setEditName(s.name);
+    setEditCourse(s.course);
+    setEditSubject(s.subject);
+    setEditPlatform(s.platform);
+    setEditLink(s.link);
+    setEditAllowGuest(s.allowGuest ?? true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingSession) return;
+
+    const updatedSess: Session = {
+      ...editingSession,
+      name: editName,
+      course: editCourse,
+      subject: editSubject,
+      platform: editPlatform,
+      link: editLink,
+      allowGuest: editAllowGuest
+    };
+
+    // Update DB
+    try {
+      const { error } = await supabase
+        .from('meetings')
+        .update({
+          title: editName,
+          platform: editPlatform,
+          // course and subject can be updated if the column exists
+          // schema.sql has: title, description, platform, status
+          // we can also pass course and subject if they are added
+        })
+        .eq('id', editingSession.id);
+      if (error) throw error;
+    } catch (err: any) {
+      console.warn("Could not update session in cloud database, saving locally:", err);
+      if (err.code === '42501') {
+        alert("Failed to save changes to cloud database due to Row-Level Security (RLS) policies. To enable database updates, run this command in your Supabase SQL editor:\n\nCREATE POLICY \"Enable update for authenticated users\" ON meetings FOR UPDATE USING (true);");
+      }
+    }
+
+    // Update state and localstorage
+    setSessions(prev => {
+      const updated = prev.map(s => s.id === editingSession.id ? updatedSess : s);
+      try {
+        localStorage.setItem('meetpulse_local_sessions', JSON.stringify(updated));
+      } catch (e) {
+        console.error("Local storage edit save failed", e);
+      }
+      return updated;
+    });
+
+    setEditingSession(null);
+  };
   const currentSession = sessions.find(s => s.id === liveSessionId) || sessions[0];
   const activeMaterial = currentSession?.materials?.find(m => m.name === activeDocumentName) || currentSession?.materials?.[0];
   const meetingId = currentSession?.meetingId || "983-294-811";
@@ -138,7 +261,29 @@ export function LecturerPresenterDashboard({
 
   if (activeTab === "overview") {
     return (
-      <div className="space-y-6">
+      <>
+        <div className="space-y-6 relative">
+          {/* Alerts Toasts */}
+          <div className="absolute top-0 right-0 z-50 flex flex-col gap-2 pointer-events-none">
+          {activeAlerts.map(alert => (
+            <motion.div 
+              initial={{ opacity: 0, y: -20, x: 20 }}
+              animate={{ opacity: 1, y: 0, x: 0 }}
+              key={alert.id} 
+              className="pointer-events-auto bg-amber-500/10 border border-amber-500 text-amber-500 px-4 py-3 rounded-2xl shadow-lg flex items-start gap-3 w-80 backdrop-blur-md"
+            >
+              <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-bold text-sm">Alert: {alert.type}</p>
+                <p className="text-[10px] opacity-80">Reported by {alert.studentName}</p>
+              </div>
+              <button onClick={() => removeAlert(alert.id)} className="text-amber-500 hover:text-amber-400">
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          ))}
+        </div>
+
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Average Attendance" value="94.8%" change="↑ 1.2% this week" icon={UserCheck} gradient="from-indigo-500 to-purple-500" />
           <StatCard label="Average Engagement" value="88.2%" change="Optimal" icon={Activity} gradient="from-purple-500 to-pink-500" />
@@ -201,20 +346,117 @@ export function LecturerPresenterDashboard({
                   <p className="font-bold">{s.name}</p>
                   <p className="text-muted-foreground text-[10px]">{s.date} at {s.time} • {s.platform}</p>
                 </div>
-                <button 
-                  onClick={() => {
-                    setLiveSessionId(s.id);
-                    setAudienceCount(30);
-                    setActiveTab("live");
-                  }}
-                  className="text-primary font-bold hover:underline cursor-pointer">Launch</button>
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => {
+                      setLiveSessionId(s.id);
+                      setAudienceCount(30);
+                      setActiveTab("live");
+                    }}
+                    className="text-primary font-bold hover:underline cursor-pointer flex items-center gap-1">
+                    <Play className="w-3 h-3" /> Launch
+                  </button>
+                  <button 
+                    onClick={() => handleStartEdit(s)}
+                    className="text-slate-400 hover:text-indigo-400 font-medium cursor-pointer flex items-center gap-1"
+                    title="Edit Session"
+                  >
+                    <Edit2 className="w-3 h-3" /> Edit
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteSession(s.id)}
+                    className="text-slate-400 hover:text-red-400 font-medium cursor-pointer flex items-center gap-1"
+                    title="Delete Session"
+                  >
+                    <Trash2 className="w-3 h-3" /> Delete
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
-    );
-  }
+
+      {editingSession && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#1e293b] border border-slate-700 w-full max-w-lg rounded-3xl p-6 space-y-6 shadow-2xl relative text-left">
+            <div>
+              <h3 className="font-bold text-sm text-foreground">Edit Session Details</h3>
+              <p className="text-xs text-muted-foreground">Modify details for this scheduled session.</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 mb-1 block">SESSION NAME</label>
+                <input 
+                  value={editName} 
+                  onChange={e => setEditName(e.target.value)} 
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-4 py-3 text-xs outline-none text-foreground" 
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 mb-1 block">COURSE</label>
+                  <select value={editCourse} onChange={e => setEditCourse(e.target.value)} className="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2.5 text-xs outline-none text-foreground">
+                    <option value="CS401 Deep Learning">CS401 Deep Learning</option>
+                    <option value="CS301 Operating Systems">CS301 Operating Systems</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 mb-1 block">SUBJECT / TOPIC</label>
+                  <input value={editSubject} onChange={e => setEditSubject(e.target.value)} className="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2 text-xs outline-none text-foreground" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 mb-1 block">MEETING PLATFORM</label>
+                  <select value={editPlatform} onChange={e => setEditPlatform(e.target.value)} className="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2.5 text-xs outline-none text-foreground">
+                    <option value="MeetPulse Live">MeetPulse Live</option>
+                    <option value="Zoom">Zoom Meeting</option>
+                    <option value="Google Meet">Google Meet</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 mb-1 block">MEETING LINK (OPTIONAL)</label>
+                  <input value={editLink} onChange={e => setEditLink(e.target.value)} className="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2 text-xs outline-none text-foreground" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 mb-1 block">PARTICIPANT ACCESS MODE</label>
+                <select 
+                  value={editAllowGuest ? "guest" : "login"} 
+                  onChange={e => setEditAllowGuest(e.target.value === "guest")} 
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2.5 text-xs outline-none text-foreground"
+                >
+                  <option value="guest">Guest Access Allowed (Scan QR / Join instantly)</option>
+                  <option value="login">Strict Login Required (Credentials required)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-2">
+              <button 
+                onClick={() => setEditingSession(null)}
+                className="text-slate-300 border border-slate-700 hover:bg-slate-800 py-2.5 rounded-xl font-bold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveEdit}
+                className="bg-primary text-white hover:opacity-90 py-2.5 rounded-xl font-bold text-xs cursor-pointer"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
   if (activeTab === "create-session") {
     return (
@@ -373,41 +615,166 @@ export function LecturerPresenterDashboard({
             </div>
           </div>
 
-          <button 
-            disabled={isUploading}
-            onClick={() => {
-              const parsedSlides = slideTitlesText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
-              const newSess: Session = {
-                id: "SESS-" + (100 + sessions.length + 1),
-                name: newSessionName || "Custom Lecture Topic",
-                description: "Simulated presentation session.",
-                course: newSessionCourse,
-                subject: newSessionSubject,
-                date: "Today",
-                time: "Live Now",
-                platform: newSessionPlatform,
-                link: newSessionLink || "https://meetpulse.live/join",
-                slidesCount: parsedSlides.length > 0 ? parsedSlides.length : 12,
-                meetingId: (Math.floor(100 + Math.random() * 900)) + "-" + (Math.floor(100 + Math.random() * 900)) + "-" + (Math.floor(100 + Math.random() * 900)),
-                allowGuest: allowGuest,
-                slides: parsedSlides.length > 0 ? parsedSlides : undefined,
-                presentationFile: slideFile || undefined,
-                materials: uploadedMaterials.length > 0 ? uploadedMaterials : undefined
-              };
-              setSessions(prev => [newSess, ...prev] as any);
-              setLiveSessionId(newSess.id);
-              setAudienceCount(50);
-              alert(`Session created successfully!\n\nMeeting ID: ${newSess.meetingId}\nQR generated instantly.`);
-              setActiveTab("live");
-            }}
-            className={`w-full text-white py-3 rounded-xl font-bold text-xs shadow-md transition-all ${
-              isUploading 
-                ? "bg-slate-700 cursor-not-allowed opacity-70 animate-pulse" 
-                : "bg-gradient-to-r from-indigo-500 to-purple-600 cursor-pointer hover:shadow-lg"
-            }`}
-          >
-            {isUploading ? "⚡ Uploading Materials to Presentation Server..." : "Publish & Start Session"}
-          </button>
+          <div className="grid grid-cols-2 gap-4">
+            <button 
+              disabled={isUploading}
+              onClick={async () => {
+                const parsedSlides = slideTitlesText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+                const tempId = "SESS-" + (100 + sessions.length + 1);
+                const newSess: Session = {
+                  id: tempId,
+                  name: newSessionName || "Custom Lecture Topic",
+                  description: "Simulated presentation session.",
+                  course: newSessionCourse,
+                  subject: newSessionSubject,
+                  date: new Date().toISOString().split('T')[0],
+                  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  platform: newSessionPlatform,
+                  link: newSessionLink || "https://meetpulse.live/join",
+                  slidesCount: parsedSlides.length > 0 ? parsedSlides.length : 12,
+                  meetingId: (Math.floor(100 + Math.random() * 900)) + "-" + (Math.floor(100 + Math.random() * 900)) + "-" + (Math.floor(100 + Math.random() * 900)),
+                  allowGuest: allowGuest,
+                  slides: parsedSlides.length > 0 ? parsedSlides : undefined,
+                  presentationFile: slideFile || undefined,
+                  materials: uploadedMaterials.length > 0 ? uploadedMaterials : undefined
+                };
+
+                // Connect to database
+                try {
+                  const user = useAuthStore.getState().user;
+                  const insertData: any = {
+                    title: newSess.name,
+                    description: newSess.description,
+                    platform: newSess.platform,
+                    status: 'scheduled',
+                    materials: newSess.materials || []
+                  };
+                  if (user) {
+                    insertData.presenter_id = user.id;
+                  }
+                  
+                  const { data, error } = await supabase
+                    .from('meetings')
+                    .insert(insertData)
+                    .select()
+                    .single();
+
+                  if (error) {
+                    throw error;
+                  }
+                  
+                  if (data) {
+                    newSess.id = data.id;
+                  }
+                  alert(`Session created & saved to database successfully!\n\nLaunch it from the dashboard overview whenever you are ready.`);
+                } catch (dbErr: any) {
+                  console.warn("Could not save to Supabase database, using local storage fallback:", dbErr);
+                  if (dbErr.code === '42501') {
+                    alert(`Saved to local state, but failed to save to cloud database due to Row-Level Security (RLS) policies on the 'meetings' table.\n\nTo enable database persistence, please run the SQL migration in your Supabase dashboard:\n\nCREATE POLICY "Enable insert for authenticated users" ON meetings FOR INSERT WITH CHECK (auth.uid() = presenter_id);`);
+                  } else {
+                    alert(`Saved to local state, but database save failed: ${dbErr.message || dbErr}.`);
+                  }
+                }
+
+                setSessions(prev => {
+                  const updated = [newSess, ...prev] as any;
+                  // Persist to local storage as fallback
+                  try {
+                    localStorage.setItem('meetpulse_local_sessions', JSON.stringify(updated));
+                  } catch (e) {
+                    console.error("Local storage save failed", e);
+                  }
+                  return updated;
+                });
+                setActiveTab("overview");
+              }}
+              className="text-slate-300 border border-white/10 hover:bg-white/5 py-3 rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center"
+            >
+              Create for Later
+            </button>
+
+            <button 
+              disabled={isUploading}
+              onClick={async () => {
+                const parsedSlides = slideTitlesText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+                const tempId = "SESS-" + (100 + sessions.length + 1);
+                const newSess: Session = {
+                  id: tempId,
+                  name: newSessionName || "Custom Lecture Topic",
+                  description: "Simulated presentation session.",
+                  course: newSessionCourse,
+                  subject: newSessionSubject,
+                  date: "Today",
+                  time: "Live Now",
+                  platform: newSessionPlatform,
+                  link: newSessionLink || "https://meetpulse.live/join",
+                  slidesCount: parsedSlides.length > 0 ? parsedSlides.length : 12,
+                  meetingId: (Math.floor(100 + Math.random() * 900)) + "-" + (Math.floor(100 + Math.random() * 900)) + "-" + (Math.floor(100 + Math.random() * 900)),
+                  allowGuest: allowGuest,
+                  slides: parsedSlides.length > 0 ? parsedSlides : undefined,
+                  presentationFile: slideFile || undefined,
+                  materials: uploadedMaterials.length > 0 ? uploadedMaterials : undefined
+                };
+
+                // Connect to database
+                try {
+                  const user = useAuthStore.getState().user;
+                  const insertData: any = {
+                    title: newSess.name,
+                    description: newSess.description,
+                    platform: newSess.platform,
+                    status: 'live',
+                    materials: newSess.materials || []
+                  };
+                  if (user) {
+                    insertData.presenter_id = user.id;
+                  }
+                  
+                  const { data, error } = await supabase
+                    .from('meetings')
+                    .insert(insertData)
+                    .select()
+                    .single();
+
+                  if (error) {
+                    throw error;
+                  }
+                  
+                  if (data) {
+                    newSess.id = data.id;
+                  }
+                  alert(`Session created & started on database successfully!`);
+                } catch (dbErr: any) {
+                  console.warn("Could not save live session to database, using local state:", dbErr);
+                  if (dbErr.code === '42501') {
+                    alert(`Launching session in local state, but database save failed due to Row-Level Security (RLS) policies on the 'meetings' table.\n\nTo persist it, please run the SQL migration in your Supabase dashboard:\n\nCREATE POLICY "Enable insert for authenticated users" ON meetings FOR INSERT WITH CHECK (auth.uid() = presenter_id);`);
+                  } else {
+                    alert(`Launching session, but database save failed: ${dbErr.message || dbErr}.`);
+                  }
+                }
+
+                setSessions(prev => {
+                  const updated = [newSess, ...prev] as any;
+                  try {
+                    localStorage.setItem('meetpulse_local_sessions', JSON.stringify(updated));
+                  } catch (e) {
+                    console.error("Local storage save failed", e);
+                  }
+                  return updated;
+                });
+                setLiveSessionId(newSess.id);
+                setAudienceCount(50);
+                setActiveTab("live");
+              }}
+              className={`text-white py-3 rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center ${
+                isUploading 
+                  ? "bg-slate-700 cursor-not-allowed opacity-70 animate-pulse" 
+                  : "bg-gradient-to-r from-indigo-500 to-purple-600 cursor-pointer hover:shadow-lg"
+              }`}
+            >
+              {isUploading ? "⚡ Uploading..." : "Create & Start Now"}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -475,7 +842,7 @@ export function LecturerPresenterDashboard({
                   </div>
                 ) : activeMaterial && (activeMaterial.type === "DOCX" || activeMaterial.type === "DOC") && activeMaterial.url ? (
                   <div className="w-full h-full bg-slate-900 rounded-2xl overflow-hidden border border-white/5 relative z-10 flex-grow my-2 min-h-[300px]">
-                    <DocxRenderer url={activeMaterial.url} name={activeMaterial.name} />
+                    <DocxRenderer url={activeMaterial.localUrl || activeMaterial.url} name={activeMaterial.name} />
                   </div>
                 ) : activeMaterial && (activeMaterial.type === "DOCX" || activeMaterial.type === "DOC" || activeMaterial.type === "TXT") ? (
                   <div className="w-full h-full bg-white text-slate-950 rounded-2xl p-8 border border-slate-300 relative z-10 flex-grow my-2 flex flex-col justify-between overflow-y-auto min-h-[300px] shadow-inner">
@@ -562,11 +929,32 @@ export function LecturerPresenterDashboard({
 
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => alert("Meeting QR Code shared!")} className="bg-slate-900 border border-white/10 hover:border-primary text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer">Share QR</button>
-                  <button onClick={() => setLivePoll(prev => prev ? ({ ...prev, isActive: !prev.isActive }) : { question: "Quick Check", options: ["Yes", "No"], votes: [0, 0], isActive: true })} className="bg-primary text-white hover:opacity-90 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">
+                  <button onClick={() => {
+                    const newPoll = livePoll?.isActive ? null : { question: "Quick Check", options: ["Yes", "No"], votes: [0, 0], isActive: true };
+                    setLivePoll(newPoll as any);
+                    if (newPoll) socket.emit("launch-poll", { sessionId: liveSessionId, ...newPoll });
+                    else socket.emit("close-poll", { sessionId: liveSessionId });
+                  }} className="bg-primary text-white hover:opacity-90 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">
                     {livePoll?.isActive ? "End Poll" : "Launch Poll"}
                   </button>
-                  <button onClick={() => setPulseScore(Math.floor(70 + Math.random() * 30))} className="bg-cyan-500 text-white hover:opacity-90 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">
+                  <button onClick={() => socket.emit("pulse-check", { sessionId: liveSessionId })} className="bg-cyan-500 text-white hover:opacity-90 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">
                     Pulse Check
+                  </button>
+                  <button 
+                    disabled={isGeneratingQuiz}
+                    onClick={async () => {
+                      setIsGeneratingQuiz(true);
+                      const transcript = useMeetingStore.getState().transcript;
+                      const text = transcript.map(t => t.text).join(" ");
+                      const courseName = currentSession?.name || "Lecture";
+                      const questions = await generateQuizFromTranscript(courseName, text);
+                      socket.emit("launch-quiz", { sessionId: liveSessionId, questions });
+                      setIsGeneratingQuiz(false);
+                      alert("Quiz launched and sent to all students!");
+                    }} 
+                    className="bg-indigo-500 text-white hover:opacity-90 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    {isGeneratingQuiz ? "Generating..." : "Generate AI Quiz"}
                   </button>
                   <button onClick={() => { setLiveSessionId(null); setActiveTab("overview"); }} className="bg-rose-500 text-white px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">End Session</button>
                 </div>
@@ -641,16 +1029,34 @@ export function LecturerPresenterDashboard({
                             // Trigger background upload
                             if (ext === "PPTX" || ext === "PPT" || ext === "DOCX" || ext === "DOC" || ext === "PDF") {
                               uploadToSupabaseStorage(file).then(pubUrl => {
-                                // Update session materials url in store
-                                setSessions(prev => prev.map(s => {
-                                  if (s.id === currentSession.id) {
-                                    return {
-                                      ...s,
-                                      materials: s.materials?.map(m => m.name === file.name ? { ...m, url: pubUrl } : m)
-                                    };
+                                // Update session materials
+                                setSessions(prev => {
+                                  const newSessions = prev.map(s => {
+                                    if (s.id === currentSession.id) {
+                                      return {
+                                        ...s,
+                                        materials: s.materials?.map(m => m.name === file.name ? { ...m, url: pubUrl } : m)
+                                      };
+                                    }
+                                    return s;
+                                  });
+                                  
+                                  const updatedSession = newSessions.find(s => s.id === currentSession.id);
+                                  if (updatedSession && updatedSession.materials) {
+                                    const dbMaterials = updatedSession.materials.map(m => {
+                                      const copy = { ...m };
+                                      if (copy.url && copy.url.startsWith('blob:')) copy.url = undefined;
+                                      return copy;
+                                    });
+                                    supabase.from('meetings').update({ materials: dbMaterials }).eq('id', updatedSession.id).then(() => {
+                                      if (liveSessionId) {
+                                        socket.emit('materials-update', { sessionId: liveSessionId, materials: dbMaterials });
+                                      }
+                                    });
                                   }
-                                  return s;
-                                }) as any);
+                                  
+                                  return newSessions as any;
+                                });
                                 setUploadError(null);
                               }).catch(err => {
                                 console.error("Live Cloud upload failed:", err);
@@ -720,13 +1126,21 @@ export function LecturerPresenterDashboard({
                 </div>
 
                 <div className="space-y-2">
-                  <p className="font-bold text-[10px] text-muted-foreground">Audience Questions</p>
+                  <div className="flex justify-between items-center">
+                    <p className="font-bold text-[10px] text-muted-foreground">Audience Questions</p>
+                    {isGroupingQuestions && <span className="text-[10px] text-indigo-400 animate-pulse">AI is summarizing...</span>}
+                  </div>
                   <div className="space-y-2 max-h-44 overflow-y-auto">
                     {liveQuestions.map(q => (
                       <div key={q.id} className="p-2.5 bg-background border border-border rounded-xl text-[10px] flex justify-between items-start">
                         <div>
                           <p className="text-foreground">{q.text}</p>
                           <span className="text-[8px] text-muted-foreground">By {q.author}</span>
+                          {q.count && q.count > 1 && (
+                            <span className="ml-2 px-1.5 py-0.5 bg-indigo-500/20 text-indigo-400 rounded-full font-bold text-[8px]">
+                              {q.count} students asked this
+                            </span>
+                          )}
                         </div>
                         {!q.isAnswered && (
                           <button onClick={() => markQuestionAnswered(q.id)} className="text-[8px] text-emerald-400 font-bold hover:underline cursor-pointer">Answered</button>
@@ -752,7 +1166,7 @@ export function LecturerPresenterDashboard({
         </div>
 
         <div className="border-b border-border flex flex-wrap gap-4 text-xs font-semibold">
-          {["engagement", "attendance", "understanding", "polls", "questions", "ai"].map(tab => (
+          {["engagement", "attendance", "understanding", "polls", "quizzes", "questions", "ai"].map(tab => (
             <button 
               key={tab}
               onClick={() => setPresAnalyticsTab(tab)}
@@ -762,23 +1176,55 @@ export function LecturerPresenterDashboard({
           ))}
         </div>
 
-        <div className="h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={[
-              { time: "09:00", engagement: 65, active: 40 },
-              { time: "09:15", engagement: 82, active: 78 },
-              { time: "09:30", engagement: 91, active: 82 },
-              { time: "09:45", engagement: 74, active: 80 },
-              { time: "10:00", engagement: 88, active: 84 },
-            ]}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="time" />
-              <YAxis />
-              <Tooltip />
-              <Area type="monotone" dataKey="engagement" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.1} name="Engagement Score %" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        {presAnalyticsTab === "quizzes" ? (
+          <div className="space-y-4">
+            <h4 className="font-bold text-xs uppercase text-primary tracking-wider">AI Quiz Results</h4>
+            {Object.keys(quizStats).length === 0 ? (
+              <p className="text-xs text-muted-foreground">No quiz data available yet. Launch a quiz to see results.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(quizStats).map(([id, stat]) => {
+                  const total = stat.correct + stat.incorrect;
+                  const correctPct = total === 0 ? 0 : Math.round((stat.correct / total) * 100);
+                  return (
+                    <div key={id} className="bg-background border border-border p-4 rounded-2xl space-y-3">
+                      <p className="font-bold text-sm text-foreground">{stat.question}</p>
+                      <div className="flex items-center gap-4 text-xs">
+                        <div className="flex flex-col gap-1 w-full">
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>Correct: {stat.correct}</span>
+                            <span>{correctPct}%</span>
+                          </div>
+                          <div className="w-full h-2 bg-rose-500/20 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${correctPct}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={[
+                { time: "09:00", engagement: 65, active: 40 },
+                { time: "09:15", engagement: 82, active: 78 },
+                { time: "09:30", engagement: 91, active: 82 },
+                { time: "09:45", engagement: 74, active: 80 },
+                { time: "10:00", engagement: 88, active: 84 },
+              ]}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="time" />
+                <YAxis />
+                <Tooltip />
+                <Area type="monotone" dataKey="engagement" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.1} name="Engagement Score %" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
     );
   }

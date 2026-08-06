@@ -53,7 +53,8 @@ export interface Session {
   allowGuest?: boolean;
   slides?: string[];
   presentationFile?: string;
-  materials?: { name: string; size: string; type: string; url?: string; fileObject?: File; textContents?: string; slidesText?: string[][] }[];
+  materials?: { name: string; size: string; type: string; url?: string; localUrl?: string; fileObject?: File; textContents?: string; slidesText?: string[][] }[];
+  status?: string;
 }
 
 export interface LiveQuestion {
@@ -64,6 +65,7 @@ export interface LiveQuestion {
   isAnonymous: boolean;
   author: string;
   isAnswered: boolean;
+  count?: number;
 }
 
 export interface LivePoll {
@@ -90,5 +92,12 @@ export interface TranscriptSegment {
   timestamp: string;
   confidence: number;
   slide: number;
+}
+
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
 }
 

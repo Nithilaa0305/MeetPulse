@@ -205,23 +205,32 @@ export function LiveTranscriptionPanel({ isReadOnly = false }: { isReadOnly?: bo
 
     recognition.onerror = (event: any) => {
       console.error("Speech recognition error", event.error);
-      if (event.error === "not-allowed") {
-        setErrorMsg("Microphone access denied. Using simulation mode.");
-        startSimulation();
-      }
+      setErrorMsg(`Speech recognition error: ${event.error}. Using simulation mode.`);
+      stopSpeechRecognition();
+      startSimulation();
     };
 
     recognition.onend = () => {
       if (isMicActiveRef.current) {
         try {
           recognition.start();
-        } catch (e) {
+        } catch (e: any) {
           console.error("Failed to restart speech recognition:", e);
+          setErrorMsg(`Failed to restart speech recognition: ${e.message || e}. Using simulation mode.`);
+          stopSpeechRecognition();
+          startSimulation();
         }
       }
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (e: any) {
+      console.error("Failed to start speech recognition:", e);
+      setErrorMsg(`Failed to start speech recognition: ${e.message || e}. Using simulation mode.`);
+      stopSpeechRecognition();
+      startSimulation();
+    }
   };
 
   // Stop Browser Speech Recognition

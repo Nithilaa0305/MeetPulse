@@ -20,7 +20,7 @@ interface DataState {
   fetchData: (orgId: string | null) => Promise<void>;
 }
 
-export const useDataStore = create<DataState>((set) => ({
+export const useDataStore = create<DataState>((set, get) => ({
   students: [],
   lecturers: [],
   courses: [],
@@ -56,9 +56,12 @@ export const useDataStore = create<DataState>((set) => ({
             email: p.email,
             status: 'active',
             course: 'Unassigned',
+            lecturer: 'Unassigned',
             attendance: 0,
-            performance: 0,
-            engagement: 0
+            engagement: 0,
+            participation: 0,
+            questionsCount: 0,
+            report: ''
           }));
 
         const lecturers: Lecturer[] = profiles
@@ -66,11 +69,11 @@ export const useDataStore = create<DataState>((set) => ({
           .map(p => ({
             id: p.id,
             name: p.full_name || 'Unknown',
-            email: p.email,
-            subject: 'Unassigned',
+            courses: [],
+            subjects: [],
+            attendance: 100,
             rating: 5,
-            activeCourses: 0,
-            totalStudents: 0
+            coachingReport: ''
           }));
           
         set({ students, lecturers });
@@ -78,18 +81,46 @@ export const useDataStore = create<DataState>((set) => ({
 
       // 2. Fetch Sessions
       const { data: meetings, error: mError } = await supabase.from('meetings').select('*');
+      
+      let combinedSessions: Session[] = [];
+      
       if (!mError && meetings) {
-        const sessions: Session[] = meetings.map(m => ({
+        combinedSessions = meetings.map(m => ({
           id: m.id,
           name: m.title,
-          date: m.created_at.split('T')[0],
-          attendees: 0,
-          engagement: 0,
-          duration: m.scheduled_duration ? `${m.scheduled_duration}m` : '0m',
-          status: m.status as 'scheduled' | 'live' | 'completed'
+          description: m.description || '',
+          course: m.course || 'Unassigned',
+          subject: m.subject || 'Unassigned',
+          date: m.created_at ? m.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+          time: m.time || '10:00 AM',
+          platform: m.platform || 'MeetPulse Live',
+          link: m.link || '',
+          slidesCount: m.slides_count || 0,
+          meetingId: m.meeting_id || m.id,
+          allowGuest: m.allow_guest ?? true,
+          slides: [],
+          presentationFile: '',
+          materials: m.materials || []
         }));
-        set({ sessions });
       }
+
+      // Load locally saved sessions that failed to upload due to RLS
+      try {
+        const localSessionsStr = localStorage.getItem('meetpulse_local_sessions');
+        if (localSessionsStr) {
+          const localSessions = JSON.parse(localSessionsStr) as Session[];
+          // Only add local sessions that aren't already in the DB
+          localSessions.forEach(ls => {
+            if (!combinedSessions.find(cs => cs.id === ls.id)) {
+              combinedSessions.push(ls);
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Failed to parse local sessions", e);
+      }
+      
+      set({ sessions: combinedSessions.length > 0 ? combinedSessions : get().sessions });
     } catch (err) {
       console.error("Database tables might not exist yet:", err);
     }
