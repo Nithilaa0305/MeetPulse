@@ -108,6 +108,26 @@ export const useSocketSync = () => {
         window.dispatchEvent(new CustomEvent('pulse-check-requested'));
       };
 
+      const handleQuestionAnswered = (data: any) => {
+        useMeetingStore.getState().markQuestionAnswered(data.questionId);
+      };
+
+      const handleNewQuestion = (data: any) => {
+        const store = useMeetingStore.getState();
+        if (!store.liveQuestions.find(q => q.id === data.id)) {
+          store.askQuestion(data.question, data.isAnonymous, data.author, data.id);
+        }
+      };
+
+      const handleQuestionFeedbackReceived = (data: any) => {
+        useMeetingStore.getState().updateQuestionSatisfaction(data.questionId, data.satisfaction);
+      };
+
+      const handleQuestionRatingReceived = (data: any) => {
+        useMeetingStore.getState().updateQuestionRating(data.questionId, data.rating);
+      };
+
+      socket.on('new-question', handleNewQuestion);
       socket.on('slide-changed', handleSlideChanged);
       socket.on('materials-updated', handleMaterialsUpdated);
       socket.on('transcription-status-changed', handleTranscriptionStatusChanged);
@@ -118,8 +138,12 @@ export const useSocketSync = () => {
       socket.on('poll-closed', handlePollClosed);
       socket.on('quiz-launched', handleQuizLaunched);
       socket.on('pulse-requested', handlePulseRequested);
+      socket.on('question-answered', handleQuestionAnswered);
+      socket.on('question-feedback-received', handleQuestionFeedbackReceived);
+      socket.on('question-rating-received', handleQuestionRatingReceived);
       
       return () => {
+        socket.off('new-question', handleNewQuestion);
         socket.off('slide-changed', handleSlideChanged);
         socket.off('materials-updated', handleMaterialsUpdated);
         socket.off('transcription-status-changed', handleTranscriptionStatusChanged);
@@ -130,14 +154,20 @@ export const useSocketSync = () => {
         socket.off('poll-closed', handlePollClosed);
         socket.off('quiz-launched', handleQuizLaunched);
         socket.off('pulse-requested', handlePulseRequested);
+        socket.off('question-answered', handleQuestionAnswered);
+        socket.off('question-feedback-received', handleQuestionFeedbackReceived);
+        socket.off('question-rating-received', handleQuestionRatingReceived);
       };
     }
 
     // Presenters listen for incoming audience actions
-    if (role === 'presenter') {
+    if (role === 'presenter' || role === 'admin') {
       const handleNewQuestion = (data: any) => {
-        // data: { question, isAnonymous, author }
-        askQuestion(data.question, data.isAnonymous, data.author);
+        // data: { id, question, isAnonymous, author }
+        const store = useMeetingStore.getState();
+        if (!store.liveQuestions.find(q => q.id === data.id)) {
+          store.askQuestion(data.question, data.isAnonymous, data.author, data.id);
+        }
       };
 
       const handleReaction = (data: any) => {
@@ -147,6 +177,14 @@ export const useSocketSync = () => {
 
       const handlePollVoteReceived = (data: any) => {
         updatePollVotes(data.optionIndex);
+      };
+
+      const handleQuestionFeedbackReceived = (data: any) => {
+        useMeetingStore.getState().updateQuestionSatisfaction(data.questionId, data.satisfaction);
+      };
+
+      const handleQuestionRatingReceived = (data: any) => {
+        useMeetingStore.getState().updateQuestionRating(data.questionId, data.rating);
       };
 
       const handlePulseUpdated = (data: any) => {
@@ -173,12 +211,19 @@ export const useSocketSync = () => {
         });
       };
 
+      const handleQuestionAnswered = (data: any) => {
+        useMeetingStore.getState().markQuestionAnswered(data.questionId);
+      };
+
       socket.on('new-question', handleNewQuestion);
       socket.on('reaction-received', handleReaction);
       socket.on('poll-vote-received', handlePollVoteReceived);
       socket.on('pulse-updated', handlePulseUpdated);
       socket.on('quiz-answer-received', handleQuizAnswer);
       socket.on('student-alert-received', handleStudentAlert);
+      socket.on('question-answered', handleQuestionAnswered);
+      socket.on('question-feedback-received', handleQuestionFeedbackReceived);
+      socket.on('question-rating-received', handleQuestionRatingReceived);
 
       return () => {
         socket.off('new-question', handleNewQuestion);
@@ -187,6 +232,9 @@ export const useSocketSync = () => {
         socket.off('pulse-updated', handlePulseUpdated);
         socket.off('quiz-answer-received', handleQuizAnswer);
         socket.off('student-alert-received', handleStudentAlert);
+        socket.off('question-answered', handleQuestionAnswered);
+        socket.off('question-feedback-received', handleQuestionFeedbackReceived);
+        socket.off('question-rating-received', handleQuestionRatingReceived);
       };
     }
   }, [liveSessionId, role, setCurrentSlide, setActiveDocumentName, askQuestion, triggerReaction]);
@@ -278,6 +326,7 @@ export const useSocketSync = () => {
         lastQuestionId.current = latestQuestion.id;
         socket.emit('ask-question', {
           sessionId: liveSessionId,
+          id: latestQuestion.id,
           question: latestQuestion.text,
           isAnonymous: latestQuestion.isAnonymous,
           author: latestQuestion.author

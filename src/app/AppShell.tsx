@@ -68,7 +68,7 @@ export function AppShell() {
     liveReactions, triggerReaction, livePoll, setLivePoll,
     askQuestion, pulseScore, setPulseScore, speakingPace, 
     activityFeed, activeDocumentName, setActiveDocumentName, activeQuiz, quizStats,
-    activeAlerts, removeAlert
+    activeAlerts, removeAlert, markQuestionAnswered: storeMarkQuestionAnswered
   } = useMeetingStore();
 
   const submitVote = (idx: number) => {
@@ -77,7 +77,12 @@ export function AppShell() {
     }
   };
   const upvoteQuestion = (id: string) => {};
-  const markQuestionAnswered = (id: string) => {};
+  const markQuestionAnswered = (id: string) => {
+    storeMarkQuestionAnswered(id);
+    if (liveSessionId) {
+      socket.emit('mark-question-answered', { sessionId: liveSessionId, questionId: id });
+    }
+  };
   
   const [speakingPaceLocal, setSpeakingPaceLocal] = useState(speakingPace);
   const setSpeakingPace = setSpeakingPaceLocal;
@@ -446,6 +451,7 @@ export function AppShell() {
               quizStats={quizStats}
               activeAlerts={activeAlerts}
               removeAlert={removeAlert}
+              confusionAlerts={[]}
             />
           )}
 

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { motion } from "motion/react";
 import {
   UserCheck, Activity, Brain, Users, Radio, Play, Bell, ChevronLeft, ChevronRight,
-  QrCode, ThumbsUp, ShieldAlert, Plus, Edit2, Trash2, AlertTriangle, X
+  QrCode, ThumbsUp, ShieldAlert, Plus, Edit2, Trash2, AlertTriangle, X, Star
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar } from "recharts";
 import { StatCard } from "../../components/common/CommonUI";
@@ -17,6 +17,26 @@ import { supabase } from "../../../lib/supabase";
 import { useMeetingStore } from "../../../store/useMeetingStore";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { socket, connectSocket, disconnectSocket } from "../../../lib/socket";
+import * as pdfjsLib from "pdfjs-dist";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+async function parsePdfText(file: File): Promise<string> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+    let text = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map((item: any) => item.str).join(" ") + "\n";
+    }
+    return text;
+  } catch (error) {
+    console.error("PDF Parsing failed:", error);
+    return "";
+  }
+}
 
 async function uploadToSupabaseStorage(file: File): Promise<string> {
   const bucketName = "Materials";
@@ -53,6 +73,9 @@ export function LecturerPresenterDashboard({
   activeTab,
   setActiveTab,
   sessions,
+  confusionAlerts,
+  activeAlerts,
+  removeAlert,
   liveSessionId,
   setLiveSessionId,
   currentSlide,
@@ -82,9 +105,7 @@ export function LecturerPresenterDashboard({
   setPresAnalyticsTab,
   activeDocumentName,
   setActiveDocumentName,
-  quizStats,
-  activeAlerts,
-  removeAlert
+  quizStats
 }: {
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -119,6 +140,7 @@ export function LecturerPresenterDashboard({
   activeDocumentName: string | null;
   setActiveDocumentName: (name: string | null) => void;
   quizStats: Record<string, { correct: number; incorrect: number; question: string }>;
+  confusionAlerts: any[];
   activeAlerts: { id: string; type: string; studentName: string; timestamp: Date }[];
   removeAlert: (id: string) => void;
 }) {
@@ -291,51 +313,6 @@ export function LecturerPresenterDashboard({
           <StatCard label="Students Waiting" value="0 Waiting" change="Empty lobby" icon={Users} gradient="from-rose-500 to-orange-500" />
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-gradient-to-br from-indigo-950/40 to-[#111827] border border-indigo-500/20 rounded-3xl p-6 space-y-4">
-            <div>
-              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-bold px-2 py-0.5 rounded border border-indigo-500/30 uppercase tracking-widest">Active Cockpit System</span>
-              <h3 className="text-xl font-bold mt-2">Neural Networks & Deep Learning — CS401</h3>
-              <p className="text-xs text-slate-400 mt-1">Ready to sync live slides, polls and capture reaction logs with students.</p>
-            </div>
-
-            <div className="flex gap-2">
-              {liveSessionId ? (
-                <button 
-                  onClick={() => setActiveTab("live")}
-                  className="bg-primary text-white hover:opacity-90 px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer">
-                  <Radio className="w-4 h-4" /> Open Presenter Screen
-                </button>
-              ) : (
-                <button 
-                  onClick={() => {
-                    setLiveSessionId("SESS-101");
-                    setAudienceCount(47);
-                    setActiveTab("live");
-                  }}
-                  className="bg-emerald-500 text-white hover:opacity-90 px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer">
-                  <Play className="w-4 h-4" /> Launch Session
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-card border border-border rounded-3xl p-6 space-y-4">
-            <h4 className="font-bold text-sm flex items-center gap-1.5">
-              <Bell className="w-4 h-4 text-primary" /> Notifications
-            </h4>
-            <div className="space-y-3">
-              <div className="p-3 bg-muted/10 border border-border rounded-xl text-xs space-y-1">
-                <p className="font-semibold">Slide 4 Confusion Spike</p>
-                <p className="text-[10px] text-muted-foreground">3 students indicated difficulty on weights derivation.</p>
-              </div>
-              <div className="p-3 bg-muted/10 border border-border rounded-xl text-xs space-y-1">
-                <p className="font-semibold">Quiz Results Ready</p>
-                <p className="text-[10px] text-muted-foreground">CS401 quiz 2 parsed successfully by AI summary engine.</p>
-              </div>
-            </div>
-          </div>
-        </div>
 
         <div className="bg-card border border-border rounded-3xl p-6 space-y-4">
           <h3 className="font-bold text-sm">Schedule & Presentations</h3>
@@ -568,6 +545,13 @@ export function LecturerPresenterDashboard({
                       if (ext === "PPTX" || ext === "PPT") {
                         parsePptxText(file).then(slides => {
                           setUploadedMaterials(prev => prev.map(m => m.name === file.name ? { ...m, slidesText: slides } : m));
+                        });
+                      }
+                      
+                      // Parse PDF text locally using pdfjs-dist
+                      if (ext === "PDF") {
+                        parsePdfText(file).then(text => {
+                          setUploadedMaterials(prev => prev.map(m => m.name === file.name ? { ...m, textContents: text } : m));
                         });
                       }
                       
@@ -815,6 +799,26 @@ export function LecturerPresenterDashboard({
                       <p className="leading-relaxed">{uploadError}</p>
                       <p className="mt-1 text-slate-400">Slides will render as text outlines. To view diagrams and pictures, ensure your Supabase "materials" bucket exists and is public.</p>
                     </div>
+                  </div>
+                )}
+
+                {/* Active Alerts Panel */}
+                {activeAlerts.length > 0 && (
+                  <div className="absolute top-4 right-4 z-50 flex flex-col gap-2 pointer-events-auto">
+                    {activeAlerts.map(alert => (
+                      <div key={alert.id} className="bg-rose-500/90 border border-rose-400/50 p-3 rounded-xl shadow-xl flex items-center justify-between gap-4 backdrop-blur-sm min-w-[200px]">
+                        <div>
+                          <p className="text-[10px] text-rose-200 font-bold uppercase tracking-wider">{alert.studentName}</p>
+                          <p className="text-sm text-white font-bold">{alert.type}</p>
+                        </div>
+                        <button 
+                          onClick={() => removeAlert(alert.id)}
+                          className="bg-black/20 hover:bg-black/40 text-white w-6 h-6 rounded-full flex items-center justify-center cursor-pointer transition-colors"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -1067,25 +1071,82 @@ export function LecturerPresenterDashboard({
                             // Parse PPTX text locally in browser using JSZip
                             if (ext === "PPTX" || ext === "PPT") {
                               parsePptxText(file).then(slides => {
-                                setSessions(prev => prev.map(s => {
-                                  if (s.id === currentSession.id) {
-                                    return {
-                                      ...s,
-                                      materials: s.materials?.map(m => m.name === file.name ? { ...m, slidesText: slides } : m),
-                                      slidesCount: slides.length > 0 ? slides.length : s.slidesCount
-                                    };
-                                  }
-                                  return s;
-                                }) as any);
+                                setSessions(prev => {
+                                  const newSessions = prev.map(s => {
+                                    if (s.id === currentSession.id) {
+                                      const newMaterials = s.materials?.map(m => m.name === file.name ? { ...m, slidesText: slides } : m) || [];
+                                      const dbMaterials = newMaterials.map(m => {
+                                        const copy = { ...m };
+                                        if (copy.url && copy.url.startsWith('blob:')) copy.url = undefined;
+                                        return copy;
+                                      });
+                                      supabase.from('meetings').update({ materials: dbMaterials }).eq('id', currentSession.id).then(() => {
+                                        if (liveSessionId) socket.emit('materials-update', { sessionId: liveSessionId, materials: dbMaterials });
+                                      });
+                                      return {
+                                        ...s,
+                                        materials: newMaterials,
+                                        slidesCount: slides.length > 0 ? slides.length : s.slidesCount
+                                      };
+                                    }
+                                    return s;
+                                  });
+                                  return newSessions as any;
+                                });
+                              });
+                            }
+                            
+                            // Parse PDF text locally using pdfjs-dist
+                            if (ext === "PDF") {
+                              parsePdfText(file).then(text => {
+                                setSessions(prev => {
+                                  const newSessions = prev.map(s => {
+                                    if (s.id === currentSession.id) {
+                                      const newMaterials = s.materials?.map(m => m.name === file.name ? { ...m, textContents: text } : m) || [];
+                                      const dbMaterials = newMaterials.map(m => {
+                                        const copy = { ...m };
+                                        if (copy.url && copy.url.startsWith('blob:')) copy.url = undefined;
+                                        return copy;
+                                      });
+                                      supabase.from('meetings').update({ materials: dbMaterials }).eq('id', currentSession.id).then(() => {
+                                        if (liveSessionId) socket.emit('materials-update', { sessionId: liveSessionId, materials: dbMaterials });
+                                      });
+                                      return {
+                                        ...s,
+                                        materials: newMaterials
+                                      };
+                                    }
+                                    return s;
+                                  });
+                                  return newSessions as any;
+                                });
                               });
                             }
                             
                             if (ext === "TXT") {
-                              const reader = new FileReader();
-                              reader.onload = (evt) => {
-                                matItem.textContents = evt.target?.result as string;
-                              };
-                              reader.readAsText(file);
+                              file.text().then(text => {
+                                setSessions(prev => {
+                                  const newSessions = prev.map(s => {
+                                    if (s.id === currentSession.id) {
+                                      const newMaterials = s.materials?.map(m => m.name === file.name ? { ...m, textContents: text } : m) || [];
+                                      const dbMaterials = newMaterials.map(m => {
+                                        const copy = { ...m };
+                                        if (copy.url && copy.url.startsWith('blob:')) copy.url = undefined;
+                                        return copy;
+                                      });
+                                      supabase.from('meetings').update({ materials: dbMaterials }).eq('id', currentSession.id).then(() => {
+                                        if (liveSessionId) socket.emit('materials-update', { sessionId: liveSessionId, materials: dbMaterials });
+                                      });
+                                      return {
+                                        ...s,
+                                        materials: newMaterials
+                                      };
+                                    }
+                                    return s;
+                                  });
+                                  return newSessions as any;
+                                });
+                              });
                             }
                             
                             parsedMaterials.push(matItem);
@@ -1176,7 +1237,7 @@ export function LecturerPresenterDashboard({
           ))}
         </div>
 
-        {presAnalyticsTab === "quizzes" ? (
+        {presAnalyticsTab === "quizzes" && (
           <div className="space-y-4">
             <h4 className="font-bold text-xs uppercase text-primary tracking-wider">AI Quiz Results</h4>
             {Object.keys(quizStats).length === 0 ? (
@@ -1206,7 +1267,51 @@ export function LecturerPresenterDashboard({
               </div>
             )}
           </div>
-        ) : (
+        )}
+
+        {presAnalyticsTab === "questions" && (
+          <div className="space-y-4">
+            <h4 className="font-bold text-xs uppercase text-primary tracking-wider">Question Feedback</h4>
+            {liveQuestions.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No questions have been asked yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {liveQuestions.map(q => (
+                  <div key={q.id} className="bg-background border border-border p-4 rounded-2xl flex justify-between items-start">
+                    <div className="space-y-1">
+                      <p className="font-bold text-sm text-foreground">{q.text}</p>
+                      <p className="text-[10px] text-muted-foreground">Asked by: {q.author}</p>
+                    </div>
+                    {q.isAnswered ? (
+                      <div className="flex flex-col items-end gap-1">
+                        <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                          q.satisfaction === 'yes' ? 'bg-emerald-500/20 text-emerald-400' :
+                          q.satisfaction === 'no' ? 'bg-rose-500/20 text-rose-400' :
+                          'bg-slate-500/20 text-slate-400'
+                        }`}>
+                          {q.satisfaction === 'yes' ? 'Satisfied' : q.satisfaction === 'no' ? 'Unsatisfied' : 'Awaiting Feedback'}
+                        </div>
+                        {q.rating && (
+                          <div className="flex items-center text-amber-400 gap-0.5">
+                            {Array.from({length: q.rating}).map((_, i) => (
+                              <Star key={i} size={10} fill="currentColor" />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400">
+                        Unanswered
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {presAnalyticsTab !== "quizzes" && presAnalyticsTab !== "questions" && (
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={[

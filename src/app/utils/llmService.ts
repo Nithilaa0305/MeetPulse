@@ -13,6 +13,51 @@ const getOpenAIApiKey = () => {
   return key;
 };
 
+const getGeminiApiKey = () => {
+  return (import.meta as any).env.VITE_GEMINI_API_KEY || "";
+};
+
+async function callGeminiAPI(prompt: string, jsonMode: boolean = false): Promise<string> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error("Missing VITE_GEMINI_API_KEY");
+  }
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: jsonMode ? { responseMimeType: "application/json" } : undefined
+    })
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      try {
+        const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        const modelsData = await modelsRes.json();
+        const available = modelsData.models?.map((m: any) => m.name.replace('models/', '')).filter((n: string) => n.includes('gemini')).join(', ');
+        throw new Error(`Model not found. Available models on your API key: ${available}`);
+      } catch (e) {
+        // Fallback to default error if fetching models fails
+      }
+    }
+    throw new Error(`Gemini API error: ${response.status} - ${await response.text()}`);
+  }
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error("Invalid response format from Gemini API");
+  }
+  return text;
+}
+
 const KEYWORDS = [
   "backpropagation", "neural networks", "activation", "sigmoid", "relu", 
   "gradient descent", "calculus", "chain rule", "loss", "deep learning", 
@@ -28,11 +73,11 @@ function generateFallbackSummary(courseName: string, transcriptText: string): st
   ];
 }
 
-function generateFallbackStudyNotes(courseName: string, transcriptText: string): StudyNote[] {
+function generateFallbackStudyNotes(courseName: string, transcriptText: string, errorMsg?: string): StudyNote[] {
   return [
     {
       title: "Core Concept Overview",
-      desc: `A simulated study note generated as a fallback because the OpenRouter/OpenAI API key is invalid or offline.`,
+      desc: `A simulated study note generated as a fallback because the AI APIs failed. ${errorMsg ? 'Error details: ' + errorMsg : ''}`,
       bullets: [
         "Review the key definitions and formulas in the lecture slides.",
         "Ensure you understand the step-by-step mathematical derivations.",
@@ -49,15 +94,26 @@ function generateFallbackStudyNotes(courseName: string, transcriptText: string):
   ];
 }
 
+export function parseJsonContent(content: string) {
+  let cleanJson = content.trim();
+  if (cleanJson.startsWith("```json")) {
+    cleanJson = cleanJson.substring(7);
+  } else if (cleanJson.startsWith("```")) {
+    cleanJson = cleanJson.substring(3);
+  }
+  if (cleanJson.endsWith("```")) {
+    cleanJson = cleanJson.substring(0, cleanJson.length - 3);
+  }
+  return JSON.parse(cleanJson.trim());
+}
+
 export async function generateLectureSummary(courseName: string, transcriptText: string): Promise<string[]> {
-  try {
-    const apiKey = getOpenAIApiKey();
-    const prompt = `
-    You are an expert academic assistant. The user will provide a live transcript of a lecture for the course "${courseName}".
-    Your job is to generate a cohesive, textbook-style summary of the lecture.
-    Ignore all speech disfluencies (ums, ahs, repetitions).
-    Return the summary as a JSON array of strings, where each string is a well-formed paragraph. Do not return markdown, just raw text in the array.
-    Strictly output a valid JSON array of strings, nothing else. For example: ["Paragraph 1", "Paragraph 2"]
+  const prompt = `
+  You are an expert academic assistant. The user will provide a live transcript of a lecture for the course "${courseName}".
+  Your job is to generate a cohesive, textbook-style summary of the lecture.
+  Ignore all speech disfluencies (ums, ahs, repetitions).
+  Return the summary as a JSON array of strings, where each string is a well-formed paragraph. Do not return markdown, just raw text in the array.
+  Strictly output a valid JSON array of strings, nothing else. For example: ["Paragraph 1", "Paragraph 2"]
 
 Transcript:
 """
@@ -65,6 +121,8 @@ ${transcriptText}
 """
 `;
 
+  try {
+    const apiKey = getOpenAIApiKey();
     const isOpenRouter = apiKey.startsWith("sk-or-v1-");
     const url = isOpenRouter ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions";
     const model = isOpenRouter ? "google/gemma-4-31b-it:free" : "gpt-4o-mini";
@@ -88,54 +146,48 @@ ${transcriptText}
     });
 
     if (!response.ok) {
-      console.warn("API response error, falling back to simulated summary.");
-      return generateFallbackSummary(courseName, transcriptText);
+      throw new Error(`OpenAI API status ${response.status}`);
     }
 
     const data = await response.json();
     const content = data.choices[0].message.content;
-    
-    // Clean up JSON codeblock formatting if the model wraps it
-    let cleanJson = content.trim();
-    if (cleanJson.startsWith("```json")) {
-      cleanJson = cleanJson.substring(7);
-    }
-    if (cleanJson.startsWith("```")) {
-      cleanJson = cleanJson.substring(3);
-    }
-    if (cleanJson.endsWith("```")) {
-      cleanJson = cleanJson.substring(0, cleanJson.length - 3);
-    }
-    cleanJson = cleanJson.trim();
-
-    const parsed = JSON.parse(cleanJson);
+    const parsed = parseJsonContent(content);
     const paragraphs = parsed.paragraphs || parsed.summary || parsed;
     if (Array.isArray(paragraphs)) {
         return paragraphs;
     }
-    return [content]; // fallback
+    return [content];
   } catch (e) {
-    console.error("Failed to generate AI summary, using fallback:", e);
-    return generateFallbackSummary(courseName, transcriptText);
+    console.warn("Failed to generate OpenAI summary, trying Gemini fallback:", e);
+    try {
+      const content = await callGeminiAPI(prompt, true);
+      const parsed = parseJsonContent(content);
+      const paragraphs = parsed.paragraphs || parsed.summary || parsed;
+      if (Array.isArray(paragraphs)) {
+          return paragraphs;
+      }
+      return [content];
+    } catch (geminiError) {
+      console.error("Gemini summary fallback failed:", geminiError);
+      return generateFallbackSummary(courseName, transcriptText);
+    }
   }
 }
 
 export async function generateStudyNotes(courseName: string, transcriptText: string): Promise<StudyNote[]> {
-  try {
-    const apiKey = getOpenAIApiKey();
-    const prompt = `
-    You are an expert academic assistant. The user will provide a live transcript of a lecture for the course "${courseName}".
-    Your job is to extract the core concepts and create a comprehensive study guide for the students.
-    Include formal definitions, life cycles, and concrete examples, even if the professor did not explicitly discuss them in the lecture, to help the students prepare for exams.
-    
-    You MUST return a JSON object with a single key "notes" containing an array of objects. Each object must have the following structure:
-    {
-      "title": "Concept Name",
-  "desc": "A comprehensive description or formal definition.",
-  "bullets": ["Important point 1", "Important point 2"], // optional array of strings
-  "example": "A concrete example to help understand the concept." // optional string
-}
-Strictly output valid JSON, nothing else. No markdown wrappers.
+  const prompt = `
+  You are an expert academic assistant. The user will provide a live transcript of a lecture for the course "${courseName}".
+  Your job is to extract the core concepts and create a comprehensive study guide for the students.
+  Include formal definitions, life cycles, and concrete examples, even if the professor did not explicitly discuss them in the lecture, to help the students prepare for exams.
+  
+  You MUST return a JSON object with a single key "notes" containing an array of objects. Each object must have the following structure:
+  {
+    "title": "Concept Name",
+    "desc": "A comprehensive description or formal definition.",
+    "bullets": ["Important point 1", "Important point 2"], // optional array of strings
+    "example": "A concrete example to help understand the concept." // optional string
+  }
+  Strictly output valid JSON, nothing else. No markdown wrappers.
 
 Transcript:
 """
@@ -143,6 +195,8 @@ ${transcriptText}
 """
 `;
 
+  try {
+    const apiKey = getOpenAIApiKey();
     const isOpenRouter = apiKey.startsWith("sk-or-v1-");
     const url = isOpenRouter ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions";
     const model = isOpenRouter ? "google/gemma-4-31b-it:free" : "gpt-4o-mini";
@@ -166,55 +220,48 @@ ${transcriptText}
     });
 
     if (!response.ok) {
-      console.warn("API response error, falling back to simulated study notes.");
-      return generateFallbackStudyNotes(courseName, transcriptText);
+      throw new Error(`OpenAI API status ${response.status}`);
     }
 
     const data = await response.json();
     const content = data.choices[0].message.content;
-    
-    let cleanJson = content.trim();
-    if (cleanJson.startsWith("```json")) {
-      cleanJson = cleanJson.substring(7);
-    }
-    if (cleanJson.startsWith("```")) {
-      cleanJson = cleanJson.substring(3);
-    }
-    if (cleanJson.endsWith("```")) {
-      cleanJson = cleanJson.substring(0, cleanJson.length - 3);
-    }
-    cleanJson = cleanJson.trim();
-
-    const parsed = JSON.parse(cleanJson);
+    const parsed = parseJsonContent(content);
     return parsed.notes || parsed || [];
   } catch (e) {
-    console.error("Failed to generate AI study notes, using fallback:", e);
-    return generateFallbackStudyNotes(courseName, transcriptText);
+    console.warn("Failed to generate OpenAI study notes, trying Gemini fallback:", e);
+    try {
+      const content = await callGeminiAPI(prompt, true);
+      const parsed = parseJsonContent(content);
+      return parsed.notes || parsed || [];
+    } catch (geminiError: any) {
+      console.error("Gemini study notes fallback failed:", geminiError);
+      return generateFallbackStudyNotes(courseName, transcriptText, geminiError.message || String(geminiError));
+    }
   }
 }
 
 export async function generateQuizFromTranscript(courseName: string, transcriptText: string): Promise<any[]> {
+  const prompt = `
+  You are an expert academic assistant. The user will provide a live transcript of a lecture for the course "${courseName}".
+  Your job is to generate 3-5 multiple choice questions based on the lecture material to test the students' understanding.
+  
+  You MUST return a JSON object with a single key "questions" containing an array of objects. Each object must have:
+  {
+    "id": "q1",
+    "question": "The question text",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": 0 // The zero-based index of the correct option
+  }
+  Strictly output valid JSON, nothing else. No markdown wrappers.
+
+  Transcript:
+  """
+  ${transcriptText}
+  """
+  `;
+
   try {
     const apiKey = getOpenAIApiKey();
-    const prompt = `
-    You are an expert academic assistant. The user will provide a live transcript of a lecture for the course "${courseName}".
-    Your job is to generate 3-5 multiple choice questions based on the lecture material to test the students' understanding.
-    
-    You MUST return a JSON object with a single key "questions" containing an array of objects. Each object must have:
-    {
-      "id": "q1",
-      "question": "The question text",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": 0 // The zero-based index of the correct option
-    }
-    Strictly output valid JSON, nothing else. No markdown wrappers.
-
-    Transcript:
-    """
-    ${transcriptText}
-    """
-    `;
-
     const isOpenRouter = apiKey.startsWith("sk-or-v1-");
     const url = isOpenRouter ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions";
     const model = isOpenRouter ? "google/gemma-4-31b-it:free" : "gpt-4o-mini";
@@ -238,30 +285,77 @@ export async function generateQuizFromTranscript(courseName: string, transcriptT
     });
 
     if (!response.ok) {
-      console.warn("API response error, falling back to simulated quiz.");
-      return generateFallbackQuiz();
+      throw new Error(`OpenAI API status ${response.status}`);
     }
 
     const data = await response.json();
     const content = data.choices[0].message.content;
-    
-    let cleanJson = content.trim();
-    if (cleanJson.startsWith("\`\`\`json")) {
-      cleanJson = cleanJson.substring(7);
-    }
-    if (cleanJson.startsWith("\`\`\`")) {
-      cleanJson = cleanJson.substring(3);
-    }
-    if (cleanJson.endsWith("\`\`\`")) {
-      cleanJson = cleanJson.substring(0, cleanJson.length - 3);
-    }
-    cleanJson = cleanJson.trim();
-
-    const parsed = JSON.parse(cleanJson);
+    const parsed = parseJsonContent(content);
     return parsed.questions || parsed || [];
   } catch (e) {
-    console.error("Failed to generate AI quiz, using fallback:", e);
-    return generateFallbackQuiz();
+    console.warn("Failed to generate OpenAI quiz, trying Gemini fallback:", e);
+    try {
+      const content = await callGeminiAPI(prompt, true);
+      const parsed = parseJsonContent(content);
+      return parsed.questions || parsed || [];
+    } catch (geminiError) {
+      console.error("Gemini quiz fallback failed:", geminiError);
+      return generateFallbackQuiz();
+    }
+  }
+}
+
+
+
+export async function askAIChatbot(
+  question: string,
+  transcriptText: string,
+  subject: string,
+  history: { role: "user" | "ai"; content: string }[],
+  materialText?: string
+): Promise<string> {
+  const historyText = history
+    .map(h => `${h.role === "user" ? "Student" : "AI"}: ${h.content}`)
+    .join("\n");
+
+  const prompt = `
+    You are an intelligent Teaching Assistant for the course/subject: "${subject}".
+    Your goal is to answer the student's question accurately and helpfully.
+    
+    IMPORTANT RULES:
+    1. You must ONLY discuss topics related to the subject matter.
+    2. If the student asks something off-topic (e.g., general knowledge, casual chat, programming help unrelated to the lecture), you MUST politely decline and say you can only answer questions related to the current lecture.
+    3. Use the provided lecture transcript and presentation materials as your primary sources of truth. If the answer is in the transcript or materials, reference it.
+    4. Be concise and encouraging.
+
+    Recent Lecture Transcript:
+    """
+    ${transcriptText.substring(Math.max(0, transcriptText.length - 8000))} // focus on the most recent part
+    """
+
+    ${materialText ? `
+    Current Presentation Materials (PDF/Slides):
+    """
+    ${materialText.substring(0, 15000)} // focus on a reasonable chunk to prevent token limits
+    """
+    ` : ""}
+
+    Conversation History:
+    """
+    ${historyText}
+    """
+
+    Student's New Question: "${question}"
+
+    AI Teaching Assistant Response:
+  `;
+
+  try {
+    const response = await callGeminiAPI(prompt, false);
+    return response.trim();
+  } catch (error: any) {
+    console.error("AI Chatbot API failed:", error);
+    return "I'm sorry, I am currently unable to process your request. Please try again later.";
   }
 }
 
@@ -293,7 +387,6 @@ function generateFallbackQuiz(): any[] {
   ];
 }
 
-// Helpers to match internal key function name
 function getOpenApiKeyOrOpenRouterKey() {
   return getOpenApiKey();
 }
@@ -346,17 +439,26 @@ Your response must be valid JSON matching this schema exactly.`;
       const data = await response.json();
       const content = data.choices[0].message.content;
       try {
-        const parsed = JSON.parse(content);
+        const parsed = parseJsonContent(content);
         if (Array.isArray(parsed)) return parsed as LiveQuestion[];
         if (parsed.questions && Array.isArray(parsed.questions)) return parsed.questions as LiveQuestion[];
       } catch (e) {
         console.error("Failed to parse grouped questions", e);
       }
     } else {
-      console.error("Failed to group questions", await response.text());
+      throw new Error(`OpenAI API status ${response.status}`);
     }
   } catch (error) {
-    console.error("Error during question grouping:", error);
+    console.warn("Failed to group questions via OpenAI, trying Gemini fallback:", error);
+    try {
+      const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+      const content = await callGeminiAPI(combinedPrompt, true);
+      const parsed = parseJsonContent(content);
+      if (Array.isArray(parsed)) return parsed as LiveQuestion[];
+      if (parsed.questions && Array.isArray(parsed.questions)) return parsed.questions as LiveQuestion[];
+    } catch (geminiError) {
+      console.error("Gemini grouping fallback failed:", geminiError);
+    }
   }
 
   return questions; // fallback to original if failed

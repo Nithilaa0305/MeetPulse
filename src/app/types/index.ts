@@ -65,6 +65,8 @@ export interface LiveQuestion {
   isAnonymous: boolean;
   author: string;
   isAnswered: boolean;
+  satisfaction?: 'yes' | 'no';
+  rating?: number;
   count?: number;
 }
 

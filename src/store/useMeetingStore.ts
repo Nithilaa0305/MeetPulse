@@ -35,8 +35,11 @@ interface MeetingState {
   setActiveQuiz: (quiz: QuizQuestion[]) => void;
   addQuizAnswer: (questionId: string, question: string, isCorrect: boolean) => void;
   
-  askQuestion: (text: string, anon: boolean, author: string) => void;
+  askQuestion: (text: string, anon: boolean, author: string, id?: string) => void;
   setLiveQuestions: (questions: LiveQuestion[]) => void;
+  markQuestionAnswered: (id: string) => void;
+  updateQuestionSatisfaction: (id: string, satisfaction: 'yes' | 'no') => void;
+  updateQuestionRating: (id: string, rating: number) => void;
   triggerReaction: (emoji: string) => void;
   addConfusionAlert: (alert: string) => void;
   addActivity: (activity: { time: string; text: string }) => void;
@@ -103,10 +106,10 @@ export const useMeetingStore = create<MeetingState>((set) => ({
     };
   }),
 
-  askQuestion: (text, isAnonymous, author) => set((state) => ({
+  askQuestion: (text, isAnonymous, author, id) => set((state) => ({
     liveQuestions: [
       {
-        id: `q-${Date.now()}`,
+        id: id || `q-${Date.now()}`,
         text,
         slide: state.currentSlide + 1,
         votes: 1,
@@ -119,6 +122,18 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   })),
 
   setLiveQuestions: (questions) => set({ liveQuestions: questions }),
+  
+  markQuestionAnswered: (id) => set((state) => ({
+    liveQuestions: state.liveQuestions.map(q => q.id === id ? { ...q, isAnswered: true } : q)
+  })),
+
+  updateQuestionSatisfaction: (id, satisfaction) => set((state) => ({
+    liveQuestions: state.liveQuestions.map(q => q.id === id ? { ...q, satisfaction } : q)
+  })),
+
+  updateQuestionRating: (id, rating) => set((state) => ({
+    liveQuestions: state.liveQuestions.map(q => q.id === id ? { ...q, rating } : q)
+  })),
   
   triggerReaction: (emoji) => set((state) => {
     const id = Date.now();

@@ -101,9 +101,8 @@ function HeroMockup() {
 
 export function LandingPage({ onLogin, onSignup }: { onLogin: () => void; onSignup: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [annual, setAnnual] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const navLinks = ["Features", "Solutions", "Pricing"];
+  const navLinks = ["Features", "Solutions"];
 
   const features = [
     { icon: Layers, title: "Interactive Presentations", desc: "Slides sync live across all devices. Participants follow in real-time with reactions, annotations, and bookmarks.", grad: "from-indigo-500 to-purple-600" },
@@ -112,12 +111,6 @@ export function LandingPage({ onLogin, onSignup }: { onLogin: () => void; onSign
     { icon: Target, title: "Audience Understanding", desc: "Real-time confusion detection and micro-quizzes surface comprehension gaps before they become problems.", grad: "from-emerald-500 to-teal-500" },
     { icon: Mic, title: "Presenter Coaching", desc: "AI analyzes speaking pace, engagement dips, and timing to help you become a more effective communicator.", grad: "from-orange-500 to-amber-500" },
     { icon: BarChart2, title: "Advanced Analytics", desc: "Heatmaps, radar charts, trend lines, and department dashboards exportable to PDF.", grad: "from-violet-500 to-indigo-500" },
-  ];
-
-  const tiers = [
-    { name: "Starter", m: 0, a: 0, desc: "For individuals", features: ["5 sessions / month", "30 participants", "Basic analytics", "AI transcript (30 min)", "Email support"], cta: "Start Free", hi: false },
-    { name: "Pro", m: 29, a: 23, desc: "For regular presenters", features: ["Unlimited sessions", "200 participants", "Full analytics", "Unlimited AI transcript", "AI summaries & actions", "Presenter coaching"], cta: "Start 14-Day Trial", hi: true },
-    { name: "Enterprise", m: 99, a: 79, desc: "For organizations", features: ["Everything in Pro", "Unlimited participants", "Multi-department", "SSO & SAML", "Dedicated manager", "SLA guarantee"], cta: "Contact Sales", hi: false },
   ];
 
   const faqs = [
@@ -246,53 +239,6 @@ export function LandingPage({ onLogin, onSignup }: { onLogin: () => void; onSign
         </div>
       </section>
 
-      {/* Pricing */}
-      <section className="py-24 px-4 relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-indigo-950/15 to-transparent pointer-events-none" />
-        <div className="relative mx-auto max-w-7xl">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="text-center mb-14">
-            <p className="text-xs font-semibold text-indigo-400 uppercase tracking-widest mb-4">Simple Pricing</p>
-            <h2 className="text-4xl font-extrabold text-white tracking-tight mb-4">Start free, scale as you grow</h2>
-            <div className="inline-flex bg-white/[0.04] border border-white/10 rounded-full p-1.5 mt-4">
-              <button onClick={() => setAnnual(false)} className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${!annual ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>Monthly</button>
-              <button onClick={() => setAnnual(true)} className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold transition-all ${annual ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>
-                Annual <span className="text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full font-bold">-20%</span>
-              </button>
-            </div>
-          </motion.div>
-          <div className="grid md:grid-cols-3 gap-5 items-start">
-            {tiers.map((t, i) => (
-              <motion.div key={t.name} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
-                whileHover={{ y: t.hi ? -4 : -2, transition: { duration: 0.2 } }}
-                className={`relative rounded-2xl p-7 flex flex-col transition-all ${t.hi ? "bg-gradient-to-b from-indigo-950/60 to-[#111827] border-2 border-indigo-500/50 shadow-2xl shadow-indigo-500/15" : "bg-[#111827] border border-white/8"}`}>
-                {t.hi && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-[11px] font-bold px-4 py-1 rounded-full shadow-lg whitespace-nowrap">Most Popular</div>}
-                <div className="mb-6">
-                  <h3 className="text-xl font-bold text-white mb-1">{t.name}</h3>
-                  <p className="text-slate-500 text-sm">{t.desc}</p>
-                </div>
-                <div className="mb-6">
-                  <div className="flex items-end gap-1">
-                    <span className="text-4xl font-extrabold text-white">${annual ? t.a : t.m}</span>
-                    {(annual ? t.a : t.m) > 0 && <span className="text-slate-500 text-sm mb-1.5">/ mo</span>}
-                  </div>
-                  {(annual ? t.a : t.m) === 0 && <span className="text-slate-500 text-sm">Free forever</span>}
-                </div>
-                <ul className="space-y-3 flex-1 mb-7">
-                  {t.features.map(f => (
-                    <li key={f} className="flex items-center gap-2.5 text-sm text-slate-300">
-                      <Check className={`w-4 h-4 shrink-0 ${t.hi ? "text-indigo-400" : "text-slate-500"}`} />{f}
-                    </li>
-                  ))}
-                </ul>
-                <button onClick={onSignup} className={`w-full py-3 rounded-xl font-semibold text-sm transition-all active:scale-95 ${t.hi ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 shadow-lg shadow-indigo-500/25" : "border border-white/10 text-white hover:border-white/20 hover:bg-white/5"}`}>
-                  {t.cta}
-                </button>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* FAQ */}
       <section className="py-24 px-4">
         <div className="mx-auto max-w-3xl">
@@ -345,7 +291,7 @@ export function LandingPage({ onLogin, onSignup }: { onLogin: () => void; onSign
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
               {[
-                { title: "Product", links: ["Features", "Solutions", "Pricing", "Changelog"] },
+                { title: "Product", links: ["Features", "Solutions", "Changelog"] },
                 { title: "Solutions", links: ["Education", "Business", "Enterprise"] },
                 { title: "Resources", links: ["Docs", "API Reference", "Blog"] },
                 { title: "Company", links: ["About", "Careers", "Contact", "Legal"] },

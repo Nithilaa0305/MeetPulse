@@ -1,11 +1,13 @@
 import React from "react";
 import { motion } from "motion/react";
-import { Play, Check, QrCode, ShieldAlert, ThumbsUp, Brain, Download, AlertTriangle } from "lucide-react";
+import { Play, Check, QrCode, ShieldAlert, ThumbsUp, Brain, Download, AlertTriangle, Star } from "lucide-react";
 import { Session, LiveQuestion, LivePoll, QuizQuestion } from "../../types";
 import { useAuthStore } from "../../../store/useAuthStore";
+import { useMeetingStore } from "../../../store/useMeetingStore";
 import { LiveTranscriptionPanel } from "../../components/ui/LiveTranscriptionPanel";
 import { DocxRenderer } from "../../components/ui/DocxRenderer";
 import { PptxRenderer } from "../../components/ui/PptxRenderer";
+import { AIChatPanel } from "../../components/ui/AIChatPanel";
 import { socket } from "../../../lib/socket";
 
 export function StudentParticipantDashboard({
@@ -66,6 +68,30 @@ export function StudentParticipantDashboard({
 
   const [showPulseCheck, setShowPulseCheck] = React.useState(false);
   const [currentQuiz, setCurrentQuiz] = React.useState<QuizQuestion | null>(null);
+  
+  const [satisfactionPrompt, setSatisfactionPrompt] = React.useState<{ id: string, text: string, step: 1 | 2 } | null>(null);
+  const [answeredIds, setAnsweredIds] = React.useState<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    const newAnsweredIds = new Set(answeredIds);
+    let shouldPrompt = null;
+    
+    liveQuestions.forEach(q => {
+      if (q.isAnswered && !answeredIds.has(q.id)) {
+        newAnsweredIds.add(q.id);
+        if (q.author === userName) {
+          shouldPrompt = { id: q.id, text: q.text, step: 1 as const };
+        }
+      }
+    });
+
+    if (shouldPrompt) {
+      setSatisfactionPrompt(shouldPrompt);
+      setAnsweredIds(newAnsweredIds);
+    } else if (newAnsweredIds.size !== answeredIds.size) {
+      setAnsweredIds(newAnsweredIds);
+    }
+  }, [liveQuestions, answeredIds, userName]);
 
   React.useEffect(() => {
     const handlePulse = () => setShowPulseCheck(true);
@@ -532,14 +558,98 @@ export function StudentParticipantDashboard({
                   {liveQuestions.map(q => (
                     <div key={q.id} className="p-2.5 bg-background border border-border rounded-xl text-[10px] space-y-1">
                       <p className="text-foreground leading-snug">{q.text}</p>
-                      <div className="flex justify-between items-center text-[8px] text-muted-foreground">
-                        <span>Slide {q.slide} • By {q.author}</span>
+                      <div className="flex justify-between items-center text-[8px] text-muted-foreground mt-1">
+                        <div className="flex gap-2 items-center">
+                          <span>Slide {q.slide} • By {q.author}</span>
+                          {q.isAnswered && (
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                              q.satisfaction === 'yes' ? 'bg-emerald-500/20 text-emerald-400' :
+                              q.satisfaction === 'no' ? 'bg-rose-500/20 text-rose-400' :
+                              'bg-amber-500/20 text-amber-400'
+                            }`}>
+                              {q.satisfaction === 'yes' ? 'Satisfied' : q.satisfaction === 'no' ? 'Unsatisfied' : 'Answered'}
+                            </span>
+                          )}
+                          {q.rating && (
+                            <span className="flex items-center text-amber-400 gap-0.5 ml-1">
+                              {Array.from({length: q.rating}).map((_, i) => (
+                                <Star key={i} size={8} fill="currentColor" />
+                              ))}
+                            </span>
+                          )}
+                        </div>
                         <button onClick={() => upvoteQuestion(q.id)} className="text-primary hover:underline font-bold cursor-pointer">▲ Upvote ({q.votes})</button>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
+
+              <AIChatPanel />
+              
+              {satisfactionPrompt && (
+                <div className="fixed bottom-6 right-6 z-50 bg-card border border-primary/50 p-4 rounded-2xl shadow-xl shadow-primary/20 w-80 flex flex-col gap-3">
+                  <p className="text-xs font-bold text-foreground">Your question was answered!</p>
+                  <p className="text-[10px] text-muted-foreground italic truncate">"{satisfactionPrompt.text}"</p>
+                  
+                  {satisfactionPrompt.step === 1 ? (
+                    <>
+                      <p className="text-[11px]">Were you satisfied with the answer?</p>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => {
+                            useMeetingStore.getState().updateQuestionSatisfaction(satisfactionPrompt.id, 'yes');
+                            socket.emit('question-feedback', {
+                              sessionId: liveSessionId,
+                              questionId: satisfactionPrompt.id,
+                              satisfaction: 'yes'
+                            });
+                            setSatisfactionPrompt({ ...satisfactionPrompt, step: 2 });
+                          }}
+                          className="flex-1 bg-emerald-500/20 text-emerald-400 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-500/30 cursor-pointer">
+                          Yes
+                        </button>
+                        <button 
+                          onClick={() => {
+                            useMeetingStore.getState().updateQuestionSatisfaction(satisfactionPrompt.id, 'no');
+                            socket.emit('question-feedback', {
+                              sessionId: liveSessionId,
+                              questionId: satisfactionPrompt.id,
+                              satisfaction: 'no'
+                            });
+                            setSatisfactionPrompt({ ...satisfactionPrompt, step: 2 });
+                          }}
+                          className="flex-1 bg-rose-500/20 text-rose-400 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-500/30 cursor-pointer">
+                          No
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[11px]">How would you rate the answer?</p>
+                      <div className="flex justify-between px-2">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <button
+                            key={star}
+                            onClick={() => {
+                              useMeetingStore.getState().updateQuestionRating(satisfactionPrompt.id, star);
+                              socket.emit('question-rating', {
+                                sessionId: liveSessionId,
+                                questionId: satisfactionPrompt.id,
+                                rating: star
+                              });
+                              setSatisfactionPrompt(null);
+                            }}
+                            className="text-muted-foreground hover:text-amber-400 transition-colors cursor-pointer"
+                          >
+                            <Star size={20} />
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

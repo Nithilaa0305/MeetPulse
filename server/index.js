@@ -130,6 +130,16 @@ io.on('connection', (socket) => {
     socket.to(data.sessionId).emit('question-answered', data);
   });
 
+  socket.on('question-feedback', (data) => {
+    // data: { sessionId, questionId, satisfaction }
+    socket.to(data.sessionId).emit('question-feedback-received', data);
+  });
+
+  socket.on('question-rating', (data) => {
+    // data: { sessionId, questionId, rating }
+    socket.to(data.sessionId).emit('question-rating-received', data);
+  });
+
   // Reactions (Pulse) events
   socket.on('send-reaction', (data) => {
     // data: { sessionId, reactionType } // e.g. 'confused', 'thumbsup'
