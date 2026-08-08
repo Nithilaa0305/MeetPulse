@@ -1,5 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { MessageSquare, X, Send, Bot, User, Loader2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { useMeetingStore } from "../../../store/useMeetingStore";
 import { useDataStore } from "../../../store/useDataStore";
 import { askAIChatbot } from "../../utils/llmService";
@@ -95,8 +100,17 @@ export function AIChatPanel() {
                 <div className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center mt-1 ${msg.role === "user" ? "bg-primary/20" : "bg-indigo-500/20"}`}>
                   {msg.role === "user" ? <User className="w-3 h-3 text-primary" /> : <Bot className="w-3 h-3 text-indigo-400" />}
                 </div>
-                <div className={`p-3 rounded-2xl max-w-[80%] text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-muted text-foreground border border-border rounded-tl-none"}`}>
-                  {msg.content}
+                <div className={`p-3 rounded-2xl max-w-[80%] text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-muted text-foreground border border-border rounded-tl-none prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0"}`}>
+                  {msg.role === "user" ? (
+                    <span className="whitespace-pre-wrap">{msg.content}</span>
+                  ) : (
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm, remarkMath]} 
+                      rehypePlugins={[rehypeKatex]}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  )}
                 </div>
               </div>
             ))}

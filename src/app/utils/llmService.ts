@@ -318,6 +318,8 @@ export async function askAIChatbot(
     .map(h => `${h.role === "user" ? "Student" : "AI"}: ${h.content}`)
     .join("\n");
 
+  const cleanMaterialText = materialText ? materialText.replace(/--- Document: .*? ---/g, "").trim() : "";
+
   const prompt = `
     You are an intelligent Teaching Assistant for the course/subject: "${subject}".
     Your goal is to answer the student's question accurately and helpfully.
@@ -334,13 +336,13 @@ export async function askAIChatbot(
     ${transcriptText.substring(Math.max(0, transcriptText.length - 8000))} // focus on the most recent part
     """
 
-    ${materialText ? `
+    ${cleanMaterialText.length > 20 ? `
     Current Lecture Materials:
     """
-    ${materialText.substring(0, 15000)} // focus on a reasonable chunk to prevent token limits
+    ${materialText!.substring(0, 15000)} // focus on a reasonable chunk to prevent token limits
     """
     ` : `
-    [SYSTEM NOTE: The lecture materials/PDF text is currently EMPTY or failed to load. If the student asks about the PDF, politely inform them that the PDF text was not successfully extracted or synced to your system yet.]
+    [SYSTEM NOTE: The lecture materials/PDF text is currently EMPTY. This usually means the PDF contains only scanned images (no selectable text) or there was an error extracting the text. If the student asks about the PDF, politely inform them that no readable text could be extracted from the document.]
     `}
 
     Conversation History:

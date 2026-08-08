@@ -19,7 +19,8 @@ import { useAuthStore } from "../../../store/useAuthStore";
 import { socket, connectSocket, disconnectSocket } from "../../../lib/socket";
 import * as pdfjsLib from "pdfjs-dist";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Disable worker to avoid Vite bundling and CORS issues; fallback to main thread parsing
+// pdfjsLib.GlobalWorkerOptions.workerSrc = '';
 
 async function parsePdfText(file: File): Promise<string> {
   try {
