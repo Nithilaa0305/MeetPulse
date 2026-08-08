@@ -54,6 +54,7 @@ export interface Session {
   slides?: string[];
   presentationFile?: string;
   materials?: { name: string; size: string; type: string; url?: string; localUrl?: string; fileObject?: File; textContents?: string; slidesText?: string[][] }[];
+  analytics?: any;
   status?: string;
 }
 

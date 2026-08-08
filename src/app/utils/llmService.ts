@@ -326,7 +326,8 @@ export async function askAIChatbot(
     1. You must ONLY discuss topics related to the subject matter.
     2. If the student asks something off-topic (e.g., general knowledge, casual chat, programming help unrelated to the lecture), you MUST politely decline and say you can only answer questions related to the current lecture.
     3. Use the provided lecture transcript and presentation materials as your primary sources of truth. If the answer is in the transcript or materials, reference it.
-    4. Be concise and encouraging.
+    4. YOU HAVE FULL KNOWLEDGE OF THE PDF/PRESENTATION! The extracted text from the student's PDF/Slides is provided below under "Current Lecture Materials". If the student asks about "the pdf" or "the slides", they are referring to this text. NEVER tell the student you don't have access or can't view files. Read the text provided below and answer their question directly.
+    5. Be concise and encouraging.
 
     Recent Lecture Transcript:
     """
@@ -334,11 +335,13 @@ export async function askAIChatbot(
     """
 
     ${materialText ? `
-    Current Presentation Materials (PDF/Slides):
+    Current Lecture Materials:
     """
     ${materialText.substring(0, 15000)} // focus on a reasonable chunk to prevent token limits
     """
-    ` : ""}
+    ` : `
+    [SYSTEM NOTE: The lecture materials/PDF text is currently EMPTY or failed to load. If the student asks about the PDF, politely inform them that the PDF text was not successfully extracted or synced to your system yet.]
+    `}
 
     Conversation History:
     """

@@ -100,7 +100,9 @@ export const useDataStore = create<DataState>((set, get) => ({
           allowGuest: m.allow_guest ?? true,
           slides: [],
           presentationFile: '',
-          materials: m.materials || []
+          materials: m.materials || [],
+          status: m.status || 'scheduled',
+          analytics: m.analytics || {}
         }));
       }
 

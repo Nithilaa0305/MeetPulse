@@ -18,6 +18,7 @@ interface MeetingState {
   transcript: TranscriptSegment[];
   transcriptionStatus: 'idle' | 'listening' | 'transcribing' | 'completed';
   activeDocumentName: string | null;
+  globalMaterialText: string;
   activeQuiz: QuizQuestion[];
   quizStats: Record<string, { correct: number; incorrect: number; question: string }>;
   activeAlerts: { id: string; type: string; studentName: string; timestamp: Date }[];
@@ -48,6 +49,7 @@ interface MeetingState {
   addTranscriptSegment: (segment: Omit<TranscriptSegment, 'id'>) => void;
   updateTranscriptionStatus: (status: 'idle' | 'listening' | 'transcribing' | 'completed') => void;
   setActiveDocumentName: (name: string | null) => void;
+  setGlobalMaterialText: (text: string) => void;
   clearTranscripts: () => void;
   
   addAlert: (alert: Omit<{ id: string; type: string; studentName: string; timestamp: Date }, 'id' | 'timestamp'>) => void;
@@ -71,6 +73,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   transcript: [],
   transcriptionStatus: 'idle',
   activeDocumentName: null,
+  globalMaterialText: "",
   activeQuiz: [],
   quizStats: {},
   activeAlerts: [],
@@ -156,6 +159,7 @@ export const useMeetingStore = create<MeetingState>((set) => ({
   })),
   updateTranscriptionStatus: (status) => set({ transcriptionStatus: status }),
   setActiveDocumentName: (name) => set({ activeDocumentName: name }),
+  setGlobalMaterialText: (text) => set({ globalMaterialText: text }),
   clearTranscripts: () => set({ transcript: [] }),
 
   addAlert: (alertData) => set((state) => ({

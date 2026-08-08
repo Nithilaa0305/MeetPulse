@@ -43,8 +43,8 @@ export function AIChatPanel() {
 
     const transcriptText = transcript.map(t => t.text).join(" ");
     const subject = currentSession?.course || "General Topic";
-    const activeMaterial = currentSession?.materials?.find(m => m.name === activeDocumentName) || currentSession?.materials?.[0];
-    const materialText = activeMaterial?.textContents || activeMaterial?.slidesText?.join('\n') || "";
+    const globalMaterialText = useMeetingStore.getState().globalMaterialText;
+    const materialText = (currentSession?.materials?.map(m => m.textContents || m.slidesText?.join('\n') || "").join('\n\n') || "") + "\n\n" + globalMaterialText;
 
     try {
       const response = await askAIChatbot(userMsg, transcriptText, subject, messages, materialText);

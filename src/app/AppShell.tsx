@@ -377,7 +377,7 @@ export function AppShell() {
             />
           )}
 
-          {activeTab === "analytics" && (
+          {activeTab === "analytics" && !(org === "education" && role === "presenter") && (
             <AnalyticsDashboard role={role} org={org} />
           )}
 
@@ -414,7 +414,7 @@ export function AppShell() {
             />
           )}
 
-          {org === "education" && role === "presenter" && activeTab !== "settings" && activeTab !== "analytics" && (
+          {org === "education" && role === "presenter" && activeTab !== "settings" && (
             <LecturerPresenterDashboard 
               activeTab={activeTab}
               setActiveTab={setActiveTab}

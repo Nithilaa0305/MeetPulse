@@ -152,6 +152,38 @@ export function LecturerPresenterDashboard({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
   const [isGroupingQuestions, setIsGroupingQuestions] = useState(false);
+  
+  const audienceCount = useMeetingStore(state => state.audienceCount);
+
+  const handleConcludeMeeting = async () => {
+    if (!liveSessionId) return;
+    
+    // Compute analytics
+    const analyticsData = {
+      audienceCount,
+      pulseScore,
+      speakingPace,
+      quizStats,
+      liveQuestions,
+      liveReactions,
+      livePoll: livePoll || null
+    };
+
+    try {
+      const { supabase } = await import('../../../lib/supabase');
+      await supabase.from('meetings').update({
+        status: 'ended',
+        analytics: analyticsData
+      }).eq('id', liveSessionId);
+
+      setLiveSessionId(null);
+      setActiveTab("overview");
+      alert("Session concluded and analytics saved to the database.");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save analytics.");
+    }
+  };
 
   // Automatic Debounced AI Grouping for Questions
   React.useEffect(() => {
@@ -552,6 +584,8 @@ export function LecturerPresenterDashboard({
                       if (ext === "PDF") {
                         parsePdfText(file).then(text => {
                           setUploadedMaterials(prev => prev.map(m => m.name === file.name ? { ...m, textContents: text } : m));
+                          const currentText = useMeetingStore.getState().globalMaterialText;
+                          useMeetingStore.getState().setGlobalMaterialText(currentText + "\n\n--- Document: " + file.name + " ---\n\n" + text);
                         });
                       }
                       
@@ -956,11 +990,10 @@ export function LecturerPresenterDashboard({
                       setIsGeneratingQuiz(false);
                       alert("Quiz launched and sent to all students!");
                     }} 
-                    className="bg-indigo-500 text-white hover:opacity-90 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
-                  >
-                    {isGeneratingQuiz ? "Generating..." : "Generate AI Quiz"}
+                    className={`text-white hover:opacity-90 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${isGeneratingQuiz ? 'bg-indigo-500/50 cursor-wait' : 'bg-indigo-500 cursor-pointer'}`}>
+                    {isGeneratingQuiz ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Analyzing...</> : 'Generate AI Quiz'}
                   </button>
-                  <button onClick={() => { setLiveSessionId(null); setActiveTab("overview"); }} className="bg-rose-500 text-white px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">End Session</button>
+                  <button onClick={handleConcludeMeeting} className="bg-rose-500 text-white px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">End Session</button>
                 </div>
               </div>
               <LiveTranscriptionPanel />
@@ -1219,6 +1252,47 @@ export function LecturerPresenterDashboard({
   }
 
   if (activeTab === "analytics") {
+    // 1. Timeline Data for Engagement
+    const timelineMap = new Map<string, { time: string, engagement: number, active: number }>();
+    const addEvent = (timestamp: number, type: 'reaction' | 'question') => {
+      const date = new Date(timestamp);
+      const timeString = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      if (!timelineMap.has(timeString)) {
+        timelineMap.set(timeString, { time: timeString, engagement: 0, active: 0 });
+      }
+      const bin = timelineMap.get(timeString)!;
+      if (type === 'reaction') bin.engagement += 1;
+      if (type === 'question') bin.active += 1;
+    };
+
+    liveReactions.forEach(r => addEvent(r.id, 'reaction'));
+    liveQuestions.forEach(q => {
+      const tsMatch = q.id.match(/^q-(\d+)$/);
+      if (tsMatch) addEvent(parseInt(tsMatch[1]), 'question');
+    });
+
+    const timelineData = Array.from(timelineMap.values()).sort((a, b) => a.time.localeCompare(b.time));
+    if (timelineData.length === 0) {
+      const now = new Date();
+      timelineData.push({ time: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`, engagement: 0, active: 0 });
+    }
+
+    // 2. Understanding Metrics
+    const answeredQuestions = liveQuestions.filter(q => q.isAnswered);
+    const answerRate = liveQuestions.length ? Math.round((answeredQuestions.length / liveQuestions.length) * 100) : 0;
+    
+    const feedbackQuestions = answeredQuestions.filter(q => q.satisfaction);
+    const satisfiedQuestions = feedbackQuestions.filter(q => q.satisfaction === 'yes');
+    const satisfactionRate = feedbackQuestions.length ? Math.round((satisfiedQuestions.length / feedbackQuestions.length) * 100) : 0;
+
+    const ratedQuestions = feedbackQuestions.filter(q => q.rating !== undefined);
+    const averageRating = ratedQuestions.length 
+      ? (ratedQuestions.reduce((acc, q) => acc + (q.rating || 0), 0) / ratedQuestions.length).toFixed(1)
+      : '0.0';
+
+    // 3. Attendance Metrics
+    const uniqueParticipants = new Set(liveQuestions.map(q => q.author)).size;
+
     return (
       <div className="bg-card border border-border rounded-3xl p-6 space-y-6">
         <div>
@@ -1311,23 +1385,99 @@ export function LecturerPresenterDashboard({
           </div>
         )}
 
-        {presAnalyticsTab !== "quizzes" && presAnalyticsTab !== "questions" && (
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={[
-                { time: "09:00", engagement: 65, active: 40 },
-                { time: "09:15", engagement: 82, active: 78 },
-                { time: "09:30", engagement: 91, active: 82 },
-                { time: "09:45", engagement: 74, active: 80 },
-                { time: "10:00", engagement: 88, active: 84 },
-              ]}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Area type="monotone" dataKey="engagement" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.1} name="Engagement Score %" />
-              </AreaChart>
-            </ResponsiveContainer>
+        {presAnalyticsTab === "engagement" && (
+          <div className="space-y-4">
+            <h4 className="font-bold text-xs uppercase text-primary tracking-wider">Engagement Timeline</h4>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={timelineData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="time" />
+                  <YAxis />
+                  <Tooltip />
+                  <Area type="monotone" dataKey="engagement" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.1} name="Reactions" />
+                  <Area type="monotone" dataKey="active" stroke="#10b981" fill="#10b981" fillOpacity={0.1} name="Questions" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {presAnalyticsTab === "understanding" && (
+          <div className="space-y-4">
+            <h4 className="font-bold text-xs uppercase text-primary tracking-wider">Understanding Metrics</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-background border border-border p-4 rounded-2xl flex flex-col items-center justify-center gap-2">
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Answer Rate</p>
+                <p className="text-3xl font-bold text-primary">{answerRate}%</p>
+                <p className="text-[10px] text-muted-foreground">{answeredQuestions.length} of {liveQuestions.length} answered</p>
+              </div>
+              <div className="bg-background border border-border p-4 rounded-2xl flex flex-col items-center justify-center gap-2">
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Satisfaction Rate</p>
+                <p className="text-3xl font-bold text-emerald-400">{satisfactionRate}%</p>
+                <p className="text-[10px] text-muted-foreground">{satisfiedQuestions.length} positive feedback</p>
+              </div>
+              <div className="bg-background border border-border p-4 rounded-2xl flex flex-col items-center justify-center gap-2">
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Average Rating</p>
+                <p className="text-3xl font-bold text-amber-400">{averageRating}</p>
+                <p className="text-[10px] text-muted-foreground">Out of 5.0 stars</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {presAnalyticsTab === "attendance" && (
+          <div className="space-y-4">
+            <h4 className="font-bold text-xs uppercase text-primary tracking-wider">Attendance & Participation</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-background border border-border p-4 rounded-2xl flex flex-col items-center justify-center gap-2">
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Active Audience</p>
+                <p className="text-4xl font-bold text-primary">{audienceCount}</p>
+                <p className="text-[10px] text-muted-foreground">Currently connected</p>
+              </div>
+              <div className="bg-background border border-border p-4 rounded-2xl flex flex-col items-center justify-center gap-2">
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Unique Q&A Participants</p>
+                <p className="text-4xl font-bold text-indigo-400">{uniqueParticipants}</p>
+                <p className="text-[10px] text-muted-foreground">Students who asked questions</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {presAnalyticsTab === "polls" && (
+          <div className="space-y-4">
+            <h4 className="font-bold text-xs uppercase text-primary tracking-wider">Live Poll Results</h4>
+            {livePoll ? (
+              <div className="bg-background border border-border p-4 rounded-2xl space-y-4">
+                <p className="font-bold text-sm text-foreground">{livePoll.question}</p>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={livePoll.options.map((opt, i) => ({ name: opt, votes: livePoll.votes[i] }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="name" tick={{fontSize: 10}} />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="votes" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No active poll data.</p>
+            )}
+          </div>
+        )}
+
+        {presAnalyticsTab === "ai" && (
+          <div className="space-y-4">
+            <h4 className="font-bold text-xs uppercase text-primary tracking-wider">AI Insights</h4>
+            <div className="bg-background border border-border p-4 rounded-2xl space-y-2">
+              <p className="text-xs text-foreground">AI agent is monitoring your session pace and audience understanding.</p>
+              <div className="p-3 bg-muted/10 border border-border rounded-xl">
+                <p className="text-[10px] text-muted-foreground">Current Speaking Pace</p>
+                <p className={`text-base font-bold ${speakingPace > 130 ? "text-rose-400" : "text-emerald-400"}`}>{speakingPace} WPM</p>
+              </div>
+            </div>
           </div>
         )}
       </div>
