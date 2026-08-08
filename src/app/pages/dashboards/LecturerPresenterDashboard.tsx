@@ -761,6 +761,7 @@ export function LecturerPresenterDashboard({
                   
                   if (data) {
                     newSess.id = data.id;
+                    newSess.meetingId = data.id.substring(0, 8); // Match student fetch logic
                   }
                   alert(`Session created & started on database successfully!`);
                 } catch (dbErr: any) {

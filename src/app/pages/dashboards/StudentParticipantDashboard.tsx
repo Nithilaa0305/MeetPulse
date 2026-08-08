@@ -4,6 +4,7 @@ import { Play, Check, QrCode, ShieldAlert, ThumbsUp, Brain, Download, AlertTrian
 import { Session, LiveQuestion, LivePoll, QuizQuestion } from "../../types";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { useMeetingStore } from "../../../store/useMeetingStore";
+import { useDataStore } from "../../../store/useDataStore";
 import { LiveTranscriptionPanel } from "../../components/ui/LiveTranscriptionPanel";
 import { DocxRenderer } from "../../components/ui/DocxRenderer";
 import { PptxRenderer } from "../../components/ui/PptxRenderer";
@@ -205,9 +206,25 @@ export function StudentParticipantDashboard({
               className="bg-input border border-border px-3 py-2 text-xs rounded-xl flex-1 outline-none text-center font-mono font-bold" 
             />
             <button 
-              onClick={() => {
+              onClick={async () => {
                 const code = joinCode.trim();
-                const found = sessions.find(s => s.meetingId === code || s.id === code || s.name.toLowerCase().includes(code.toLowerCase()));
+                if (!code) return;
+
+                let found = sessions.find(s => s.meetingId === code || s.id === code || s.name.toLowerCase().includes(code.toLowerCase()));
+                
+                // If not found locally, fetch latest from DB
+                if (!found) {
+                  const { supabase } = await import('../../../lib/supabase');
+                  const { data } = await supabase.from('meetings').select('*');
+                  if (data) {
+                    const match = data.find(m => m.id === code || m.id.substring(0, 8) === code || m.title.toLowerCase().includes(code.toLowerCase()));
+                    if (match) {
+                      await useDataStore.getState().fetchData(null);
+                      found = useDataStore.getState().sessions.find((s: Session) => s.id === match.id);
+                    }
+                  }
+                }
+
                 if (found) {
                   setLiveSessionId(found.id);
                   alert(`Session "${found.name}" joined successfully!`);

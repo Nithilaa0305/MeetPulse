@@ -214,10 +214,10 @@ export function AppShell() {
   const tabs = getSidebarTabs();
 
   return (
-    <div className="flex h-full min-h-screen w-full bg-background overflow-hidden relative text-foreground">
+    <div className="flex h-screen max-h-screen w-full bg-background overflow-hidden relative text-foreground">
       {/* SIDEBAR NAVIGATION */}
       {!isMobile && (
-        <aside className="w-64 h-full min-h-screen bg-sidebar border-r border-sidebar-border shrink-0 flex flex-col justify-between py-6 px-4 overflow-y-auto">
+        <aside className="w-64 h-full bg-sidebar border-r border-sidebar-border shrink-0 flex flex-col justify-between py-6 px-4 overflow-y-auto">
           <div className="space-y-6 flex-1 flex flex-col">
             <div className="flex items-center gap-2.5 px-3 shrink-0">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -314,7 +314,7 @@ export function AppShell() {
       )}
 
       {/* CONTENT WORKSPACE */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="h-14 border-b border-border bg-card/50 flex items-center justify-between px-6 z-20 backdrop-blur-md">
           <div className="flex items-center gap-3">
             {isMobile && (
