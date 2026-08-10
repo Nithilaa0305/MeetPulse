@@ -779,30 +779,40 @@ export function AppShell() {
                     <input value={newLecturerEmpId} onChange={e => setNewLecturerEmpId(e.target.value)} placeholder="EMP101" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400">DEPARTMENT</label>
-                  <select value={newLecturerDepartment} onChange={e => setNewLecturerDepartment(e.target.value)} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
-                    <option value="">Select Department</option>
-                    {departments.map(d => (
-                      <option key={d.id} value={d.name}>{d.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400">PRIMARY SUBJECT</label>
-                  <input value={newLecturerSubject} onChange={e => setNewLecturerSubject(e.target.value)} placeholder="Deep Learning" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">DEPARTMENT</label>
+                    <select value={newLecturerDepartment} onChange={e => setNewLecturerDepartment(e.target.value)} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                      <option value="">Select Department</option>
+                      {departments.map(d => (
+                        <option key={d.id} value={d.name}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">COURSE ID</label>
+                    <select value={newLecturerCourse} onChange={e => setNewLecturerCourse(e.target.value)} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                      <option value="">Select Course</option>
+                      {courses.map(c => (
+                        <option key={c.id} value={c.id}>{c.name} ({c.code || c.id})</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => setShowCreateLecturer(false)} className="bg-white/5 border border-border hover:bg-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold">Cancel</button>
                 <button onClick={() => {
-                  if (newLecturerName && newLecturerEmail && newLecturerEmpId && newLecturerSubject) {
-                    createLecturer(newLecturerName, newLecturerEmail, newLecturerEmpId, newLecturerDepartment, newLecturerSubject);
+                  if (newLecturerName && newLecturerEmail) {
+                    const selectedCourse = courses.find(c => c.id === newLecturerCourse);
+                    const courseCodeOrName = selectedCourse ? (selectedCourse.code || selectedCourse.name) : "Unassigned";
+                    
+                    createLecturer(newLecturerName, newLecturerEmail, newLecturerEmpId, newLecturerDepartment, courseCodeOrName);
                     setNewLecturerName("");
                     setNewLecturerEmail("");
                     setNewLecturerEmpId("");
                     setNewLecturerDepartment("");
-                    setNewLecturerSubject("");
+                    setNewLecturerCourse("");
                     setShowCreateLecturer(false);
                   }
                 }} className="bg-primary text-white hover:opacity-90 px-4 py-1.5 rounded-xl text-xs font-bold">Add Faculty</button>
