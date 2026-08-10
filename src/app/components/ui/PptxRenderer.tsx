@@ -45,7 +45,7 @@ export function PptxRenderer({
       try {
         let arrayBuffer: ArrayBuffer;
         
-        if (fileObject) {
+        if (fileObject && typeof fileObject.arrayBuffer === 'function') {
           arrayBuffer = await fileObject.arrayBuffer();
         } else if (url) {
           const response = await fetch(url);
