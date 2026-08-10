@@ -217,7 +217,7 @@ export function StudentParticipantDashboard({
                   const { supabase } = await import('../../../lib/supabase');
                   const { data } = await supabase.from('meetings').select('*');
                   if (data) {
-                    const match = data.find(m => m.id === code || m.id.substring(0, 8) === code || m.title.toLowerCase().includes(code.toLowerCase()));
+                    const match = data.find(m => m.meeting_id === code || m.id === code || m.id.substring(0, 8) === code || m.title.toLowerCase().includes(code.toLowerCase()));
                     if (match) {
                       await useDataStore.getState().fetchData(null);
                       found = useDataStore.getState().sessions.find((s: Session) => s.id === match.id);

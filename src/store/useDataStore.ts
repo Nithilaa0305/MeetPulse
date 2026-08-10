@@ -96,7 +96,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           platform: m.platform || 'MeetPulse Live',
           link: m.link || '',
           slidesCount: m.slides_count || 0,
-          meetingId: m.meeting_id || m.id,
+          meetingId: m.meeting_id || m.id.substring(0, 8),
           allowGuest: m.allow_guest ?? true,
           slides: [],
           presentationFile: '',

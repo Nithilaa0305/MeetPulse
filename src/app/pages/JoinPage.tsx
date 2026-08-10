@@ -21,22 +21,42 @@ export function JoinPage() {
 
   // Find the session matching the meetingId
   useEffect(() => {
-    if (meetingId) {
-      const foundSession = sessions.find((s) => s.meetingId === meetingId);
-      if (foundSession) {
-        setSession(foundSession);
-      } else {
-        // Fallback mockup session if not found in store
-        setSession({
-          id: "SESS-MOCK",
-          name: "CS401 Deep Learning Lecture",
-          course: "CS401 Deep Learning",
-          subject: "Neural Networks",
-          meetingId: meetingId,
-          allowGuest: true, // Default to guest access allowed for demo
-        });
+    const findSession = async () => {
+      if (meetingId) {
+        let foundSession = sessions.find((s) => s.meetingId === meetingId || s.id === meetingId);
+        
+        if (!foundSession) {
+          try {
+            const { supabase } = await import('../../lib/supabase');
+            const { data } = await supabase.from('meetings').select('*');
+            if (data) {
+              const match = data.find(m => m.meeting_id === meetingId || m.id === meetingId || m.id.substring(0, 8) === meetingId || m.title.toLowerCase().includes(meetingId.toLowerCase()));
+              if (match) {
+                await useDataStore.getState().fetchData(null);
+                foundSession = useDataStore.getState().sessions.find(s => s.id === match.id);
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        if (foundSession) {
+          setSession(foundSession);
+        } else {
+          // Fallback mockup session if not found in store
+          setSession({
+            id: "SESS-MOCK",
+            name: "CS401 Deep Learning Lecture",
+            course: "CS401 Deep Learning",
+            subject: "Neural Networks",
+            meetingId: meetingId,
+            allowGuest: true, // Default to guest access allowed for demo
+          });
+        }
       }
-    }
+    };
+    findSession();
   }, [meetingId, sessions]);
 
   const handleJoinAsGuest = (e: React.FormEvent) => {
