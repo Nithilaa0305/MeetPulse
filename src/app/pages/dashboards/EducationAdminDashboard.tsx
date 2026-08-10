@@ -73,6 +73,9 @@ export function EducationAdminDashboard({
   deleteDepartment?: (id: string) => void;
 }) {
   const [newDepartmentName, setNewDepartmentName] = useState("");
+  const [courseFilterYear, setCourseFilterYear] = useState("");
+  const [courseFilterSemester, setCourseFilterSemester] = useState("");
+  const [courseFilterDept, setCourseFilterDept] = useState("");
 
   if (activeTab === "overview") {
     return (
@@ -348,9 +351,17 @@ export function EducationAdminDashboard({
   }
 
   if (activeTab === "courses") {
-    // Group courses by Year and Semester
+    // Filter courses based on selections
+    const filteredCourses = courses.filter(course => {
+      const matchYear = !courseFilterYear || course.year === courseFilterYear;
+      const matchSemester = !courseFilterSemester || course.semester === courseFilterSemester;
+      const matchDept = !courseFilterDept || course.department === courseFilterDept;
+      return matchYear && matchSemester && matchDept;
+    });
+
+    // Group filtered courses by Year and Semester
     const groupedCourses: Record<string, Course[]> = {};
-    courses.forEach(course => {
+    filteredCourses.forEach(course => {
       const key = `${course.year || '1st Year'} - ${course.semester || 'Semester 1'}`;
       if (!groupedCourses[key]) groupedCourses[key] = [];
       groupedCourses[key].push(course);
@@ -371,9 +382,71 @@ export function EducationAdminDashboard({
           </button>
         </div>
 
+        {/* Filter Controls */}
+        <div className="flex flex-wrap items-center gap-4 bg-card border border-border p-4 rounded-3xl">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Year</span>
+            <select 
+              value={courseFilterYear} 
+              onChange={e => setCourseFilterYear(e.target.value)} 
+              className="bg-input border border-border px-3 py-1.5 text-xs rounded-xl outline-none"
+            >
+              <option value="">All Years</option>
+              <option value="1st Year">1st Year</option>
+              <option value="2nd Year">2nd Year</option>
+              <option value="3rd Year">3rd Year</option>
+              <option value="4th Year">4th Year</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Semester</span>
+            <select 
+              value={courseFilterSemester} 
+              onChange={e => setCourseFilterSemester(e.target.value)} 
+              className="bg-input border border-border px-3 py-1.5 text-xs rounded-xl outline-none"
+            >
+              <option value="">All Semesters</option>
+              <option value="Semester 1">Semester 1</option>
+              <option value="Semester 2">Semester 2</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Department</span>
+            <select 
+              value={courseFilterDept} 
+              onChange={e => setCourseFilterDept(e.target.value)} 
+              className="bg-input border border-border px-3 py-1.5 text-xs rounded-xl outline-none max-w-[180px]"
+            >
+              <option value="">All Departments</option>
+              {departments && departments.map(d => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {(courseFilterYear || courseFilterSemester || courseFilterDept) && (
+            <button 
+              onClick={() => {
+                setCourseFilterYear("");
+                setCourseFilterSemester("");
+                setCourseFilterDept("");
+              }}
+              className="text-xs text-rose-400 hover:text-rose-300 font-semibold cursor-pointer ml-auto"
+            >
+              Reset Filters
+            </button>
+          )}
+        </div>
+
         {courses.length === 0 ? (
           <div className="p-8 text-center text-xs text-muted-foreground bg-card border border-border rounded-3xl">
             <p>No courses available. Click "Create Course" to add one.</p>
+          </div>
+        ) : filteredCourses.length === 0 ? (
+          <div className="p-8 text-center text-xs text-muted-foreground bg-card border border-border rounded-3xl">
+            <p>No courses match your selected filter criteria.</p>
           </div>
         ) : (
           sortedGroupKeys.map(groupKey => (
