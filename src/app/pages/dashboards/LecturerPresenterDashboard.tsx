@@ -16,6 +16,7 @@ import { generateQuizFromTranscript, groupSimilarQuestions } from "../../utils/l
 import { supabase } from "../../../lib/supabase";
 import { useMeetingStore } from "../../../store/useMeetingStore";
 import { useAuthStore } from "../../../store/useAuthStore";
+import { useDataStore } from "../../../store/useDataStore";
 import { socket, connectSocket, disconnectSocket } from "../../../lib/socket";
 import * as pdfjsLib from "pdfjs-dist";
 
@@ -146,6 +147,9 @@ export function LecturerPresenterDashboard({
   removeAlert: (id: string) => void;
 }) {
   const [allowGuest, setAllowGuest] = useState(true);
+  const user = useAuthStore(state => state.user);
+  const allCourses = useDataStore(state => state.courses);
+  const myCourses = allCourses.filter(c => c.lecturer_id === user?.id || c.lecturer === user?.name);
   const [slideFile, setSlideFile] = useState<string>("");
   const [slideTitlesText, setSlideTitlesText] = useState<string>("");
   const [uploadedMaterials, setUploadedMaterials] = useState<{ name: string; size: string; type: string; url?: string; localUrl?: string; fileObject?: File; textContents?: string; slidesText?: string[][] }[]>([]);
@@ -409,8 +413,10 @@ export function LecturerPresenterDashboard({
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 mb-1 block">COURSE</label>
                   <select value={editCourse} onChange={e => setEditCourse(e.target.value)} className="w-full bg-[#0f172a] border border-slate-700 rounded-xl px-3 py-2.5 text-xs outline-none text-foreground">
-                    <option value="CS401 Deep Learning">CS401 Deep Learning</option>
-                    <option value="CS301 Operating Systems">CS301 Operating Systems</option>
+                    {myCourses.length === 0 && <option value="">No courses assigned</option>}
+                    {myCourses.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -490,8 +496,10 @@ export function LecturerPresenterDashboard({
             <div>
               <label className="text-[10px] font-bold text-muted-foreground mb-1 block">COURSE</label>
               <select value={newSessionCourse} onChange={e => setNewSessionCourse(e.target.value)} className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-xs outline-none">
-                <option value="CS401 Deep Learning">CS401 Deep Learning</option>
-                <option value="CS301 Operating Systems">CS301 Operating Systems</option>
+                {myCourses.length === 0 && <option value="">No courses assigned</option>}
+                {myCourses.map(c => (
+                  <option key={c.id} value={c.name}>{c.name}</option>
+                ))}
               </select>
             </div>
             <div>

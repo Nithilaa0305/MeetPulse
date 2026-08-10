@@ -1,5 +1,5 @@
-import React from "react";
-import { Users, Award, BookOpen, Radio, Brain, Activity, Plus, Search, Trash2, Star } from "lucide-react";
+import React, { useState } from "react";
+import { Users, Award, BookOpen, Radio, Brain, Activity, Plus, Search, Trash2, Star, Building } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
 import { StatCard } from "../../components/common/CommonUI";
 import { Student, Lecturer, Course } from "../../types";
@@ -29,7 +29,15 @@ export function EducationAdminDashboard({
   handleAssignLecturer,
   handleSuspendStudent,
   handleDeleteStudent,
-  calculateSmartAttendanceScore
+  calculateSmartAttendanceScore,
+  onEditStudent,
+  onEditCourse,
+  onEditLecturer,
+  onDeleteCourse,
+  onDeleteLecturer,
+  departments,
+  createDepartment,
+  deleteDepartment
 }: {
   activeTab: string;
   students: Student[];
@@ -55,7 +63,17 @@ export function EducationAdminDashboard({
   handleSuspendStudent: (id: string) => void;
   handleDeleteStudent: (id: string) => void;
   calculateSmartAttendanceScore: (s: Student) => number;
+  onEditStudent?: (s: Student) => void;
+  onEditCourse?: (c: Course) => void;
+  onEditLecturer?: (l: Lecturer) => void;
+  onDeleteCourse?: (id: string) => void;
+  onDeleteLecturer?: (id: string) => void;
+  departments?: { id: string, name: string }[];
+  createDepartment?: (name: string) => void;
+  deleteDepartment?: (id: string) => void;
 }) {
+  const [newDepartmentName, setNewDepartmentName] = useState("");
+
   if (activeTab === "overview") {
     return (
       <div className="space-y-6">
@@ -156,6 +174,9 @@ export function EducationAdminDashboard({
               <tr className="border-b border-border text-muted-foreground font-bold">
                 <th className="pb-3">Name</th>
                 <th className="pb-3">Email</th>
+                <th className="pb-3">Department</th>
+                <th className="pb-3">Year</th>
+                <th className="pb-3">Semester</th>
                 <th className="pb-3">Course</th>
                 <th className="pb-3">Lecturer</th>
                 <th className="pb-3">Smart Att %</th>
@@ -171,30 +192,22 @@ export function EducationAdminDashboard({
                 .filter(s => studentFilter === "all" || s.course === studentFilter)
                 .map((student) => (
                   <tr key={student.id} className="group hover:bg-muted/10">
-                    <td className="py-3 font-semibold">{student.name}</td>
+                    <td className="py-3 font-semibold">
+                      <div className="flex items-center gap-2">
+                        {student.name}
+                        {student.isPending && <span className="bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">Pending</span>}
+                      </div>
+                      {student.emp_id && <div className="text-[10px] text-muted-foreground mt-0.5">{student.emp_id}</div>}
+                    </td>
                     <td className="py-3 text-muted-foreground">{student.email}</td>
-                    <td className="py-3">
-                      <select 
-                        value={student.course} 
-                        onChange={e => handleAssignCourse(student.id, e.target.value)}
-                        className="bg-background border border-border px-2 py-1 rounded outline-none text-[11px]">
-                        <option value="CS401 Deep Learning">CS401 Deep Learning</option>
-                        <option value="CS301 Operating Systems">CS301 Operating Systems</option>
-                        <option value="CS201 Data Structures">CS201 Data Structures</option>
-                      </select>
-                    </td>
-                    <td className="py-3">
-                      <select 
-                        value={student.lecturer} 
-                        onChange={e => handleAssignLecturer(student.id, e.target.value)}
-                        className="bg-background border border-border px-2 py-1 rounded outline-none text-[11px]">
-                        <option value="Dr. Sarah Chen">Dr. Sarah Chen</option>
-                        <option value="Dr. Rajesh Patel">Dr. Rajesh Patel</option>
-                      </select>
-                    </td>
-                    <td className="py-3 font-mono font-bold text-indigo-400">{calculateSmartAttendanceScore(student)}%</td>
-                    <td className="py-3 font-mono">{student.engagement}%</td>
-                    <td className="py-3 font-mono">{student.questionsCount}</td>
+                    <td className="py-3 text-muted-foreground">{student.department || 'General'}</td>
+                    <td className="py-3 text-muted-foreground">{student.year || '1st Year'}</td>
+                    <td className="py-3 text-muted-foreground">{student.semester || 'Semester 1'}</td>
+                    <td className="py-3">{student.course}</td>
+                    <td className="py-3">{student.lecturer}</td>
+                    <td className="py-3 font-mono font-bold text-indigo-400">--</td>
+                    <td className="py-3 font-mono">--</td>
+                    <td className="py-3 font-mono">--</td>
                     <td className="py-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                         student.status === "active" 
@@ -206,6 +219,7 @@ export function EducationAdminDashboard({
                     </td>
                     <td className="py-3 text-right space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => setSelectedStudentDetail(student)} className="text-primary hover:underline font-bold cursor-pointer">Profile</button>
+                      <button onClick={() => onEditStudent && onEditStudent(student)} className="text-accent hover:underline font-bold cursor-pointer">Edit</button>
                       <button onClick={() => handleSuspendStudent(student.id)} className="text-amber-400 hover:underline font-bold cursor-pointer">Suspend</button>
                       <button onClick={() => handleDeleteStudent(student.id)} className="text-rose-400 hover:underline font-bold cursor-pointer"><Trash2 className="w-3.5 h-3.5 inline" /></button>
                     </td>
@@ -237,6 +251,7 @@ export function EducationAdminDashboard({
               <thead>
                 <tr className="border-b border-border text-muted-foreground font-bold">
                   <th className="pb-3">Lecturer</th>
+                  <th className="pb-3">Department</th>
                   <th className="pb-3">Assigned Courses</th>
                   <th className="pb-3">Subjects</th>
                   <th className="pb-3">Average Rating</th>
@@ -246,15 +261,24 @@ export function EducationAdminDashboard({
               <tbody className="divide-y divide-border/40">
                 {lecturers.map(lec => (
                   <tr key={lec.id} className="group hover:bg-muted/10">
-                    <td className="py-3 font-semibold">{lec.name}</td>
+                    <td className="py-3 font-semibold">
+                      <div className="flex items-center gap-2">
+                        {lec.name}
+                        {lec.isPending && <span className="bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">Pending</span>}
+                      </div>
+                      {lec.emp_id && <div className="text-[10px] text-muted-foreground mt-0.5">{lec.emp_id}</div>}
+                    </td>
+                    <td className="py-3 text-muted-foreground">{lec.department || 'General'}</td>
                     <td className="py-3 text-muted-foreground">{lec.courses.join(", ")}</td>
                     <td className="py-3">{lec.subjects.join(", ")}</td>
                     <td className="py-3 font-mono font-bold text-amber-400 flex items-center gap-1">
                       <Star className="w-3.5 h-3.5 fill-amber-400 stroke-none" />
-                      {lec.rating}
+                      --
                     </td>
-                    <td className="py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => alert(`AI Coaching Report for ${lec.name}:\n\n${lec.coachingReport}`)} className="text-primary hover:underline font-bold cursor-pointer">Coaching Report</button>
+                    <td className="py-3 text-right space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => alert("No coaching report available.")} className="text-primary hover:underline font-bold cursor-pointer">Coaching Report</button>
+                      <button onClick={() => onEditLecturer && onEditLecturer(lec)} className="text-accent hover:underline font-bold cursor-pointer">Edit</button>
+                      <button onClick={() => onDeleteLecturer && onDeleteLecturer(lec.id)} className="text-rose-400 hover:underline font-bold cursor-pointer"><Trash2 className="w-3.5 h-3.5 inline" /></button>
                     </td>
                   </tr>
                 ))}
@@ -288,13 +312,13 @@ export function EducationAdminDashboard({
                 <span className="font-mono text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded">{compareLec1}</span>
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between"><span>Average Rating</span><span className="font-bold text-amber-400">{lecturers.find(l => l.id === compareLec1)?.rating} / 5.0</span></div>
+                <div className="flex justify-between"><span>Average Rating</span><span className="font-bold text-amber-400">-- / 5.0</span></div>
                 <div className="flex justify-between"><span>Assigned Courses</span><span className="font-semibold">{lecturers.find(l => l.id === compareLec1)?.courses.join(", ")}</span></div>
                 <div className="flex justify-between"><span>Core Subjects</span><span className="font-semibold">{lecturers.find(l => l.id === compareLec1)?.subjects.join(", ")}</span></div>
-                <div className="flex justify-between"><span>Attendance Index</span><span className="font-bold text-emerald-400">{lecturers.find(l => l.id === compareLec1)?.attendance}%</span></div>
+                <div className="flex justify-between"><span>Attendance Index</span><span className="font-bold text-emerald-400">--%</span></div>
               </div>
               <div className="p-2.5 bg-background border border-border rounded-xl text-[10px] leading-relaxed text-muted-foreground">
-                <strong>Pace Coach AI:</strong> {lecturers.find(l => l.id === compareLec1)?.coachingReport}
+                <strong>Pace Coach AI:</strong> Not enough data to generate insights.
               </div>
             </div>
 
@@ -304,32 +328,19 @@ export function EducationAdminDashboard({
                 <span className="font-mono text-[10px] bg-secondary/10 text-secondary px-2 py-0.5 rounded">{compareLec2}</span>
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between"><span>Average Rating</span><span className="font-bold text-amber-400">{lecturers.find(l => l.id === compareLec2)?.rating} / 5.0</span></div>
+                <div className="flex justify-between"><span>Average Rating</span><span className="font-bold text-amber-400">-- / 5.0</span></div>
                 <div className="flex justify-between"><span>Assigned Courses</span><span className="font-semibold">{lecturers.find(l => l.id === compareLec2)?.courses.join(", ")}</span></div>
                 <div className="flex justify-between"><span>Core Subjects</span><span className="font-semibold">{lecturers.find(l => l.id === compareLec2)?.subjects.join(", ")}</span></div>
-                <div className="flex justify-between"><span>Attendance Index</span><span className="font-bold text-emerald-400">{lecturers.find(l => l.id === compareLec2)?.attendance}%</span></div>
+                <div className="flex justify-between"><span>Attendance Index</span><span className="font-bold text-emerald-400">--%</span></div>
               </div>
               <div className="p-2.5 bg-background border border-border rounded-xl text-[10px] leading-relaxed text-muted-foreground">
-                <strong>Pace Coach AI:</strong> {lecturers.find(l => l.id === compareLec2)?.coachingReport}
+                <strong>Pace Coach AI:</strong> Not enough data to generate insights.
               </div>
             </div>
           </div>
 
-          <div className="h-56 pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={[
-                { metric: "Rating", LecA: (lecturers.find(l => l.id === compareLec1)?.rating || 0) * 20, LecB: (lecturers.find(l => l.id === compareLec2)?.rating || 0) * 20 },
-                { metric: "Attendance", LecA: lecturers.find(l => l.id === compareLec1)?.attendance || 0, LecB: lecturers.find(l => l.id === compareLec2)?.attendance || 0 },
-                { metric: "Courses Assigned", LecA: (lecturers.find(l => l.id === compareLec1)?.courses.length || 0) * 30, LecB: (lecturers.find(l => l.id === compareLec2)?.courses.length || 0) * 30 },
-                { metric: "Subjects Covered", LecA: (lecturers.find(l => l.id === compareLec1)?.subjects.length || 0) * 30, LecB: (lecturers.find(l => l.id === compareLec2)?.subjects.length || 0) * 30 },
-              ]}>
-                <PolarGrid stroke="var(--border)" />
-                <PolarAngleAxis dataKey="metric" />
-                <Radar name={lecturers.find(l => l.id === compareLec1)?.name || ""} dataKey="LecA" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.25} />
-                <Radar name={lecturers.find(l => l.id === compareLec2)?.name || ""} dataKey="LecB" stroke="var(--secondary)" fill="var(--secondary)" fillOpacity={0.25} />
-                <Tooltip />
-              </RadarChart>
-            </ResponsiveContainer>
+          <div className="pt-6 text-center text-muted-foreground text-[10px]">
+            <p>Comparative radar chart will appear here once sufficient baseline data is collected.</p>
           </div>
         </div>
       </div>
@@ -337,55 +348,80 @@ export function EducationAdminDashboard({
   }
 
   if (activeTab === "courses") {
+    // Group courses by Year and Semester
+    const groupedCourses: Record<string, Course[]> = {};
+    courses.forEach(course => {
+      const key = `${course.year || '1st Year'} - ${course.semester || 'Semester 1'}`;
+      if (!groupedCourses[key]) groupedCourses[key] = [];
+      groupedCourses[key].push(course);
+    });
+
+    // Sort the keys so they appear in order
+    const sortedGroupKeys = Object.keys(groupedCourses).sort();
+
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
             <h3 className="font-bold text-sm">Course Catalog</h3>
-            <p className="text-xs text-muted-foreground">Direct access to enrolled counts, averages and archives.</p>
+            <p className="text-xs text-muted-foreground">Direct access to enrolled counts, averages and archives categorized by Year and Semester.</p>
           </div>
           <button onClick={() => setShowCreateCourse(true)} className="bg-primary text-white hover:opacity-90 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer">
             <Plus className="w-3.5 h-3.5" /> Create Course
           </button>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {courses.map(course => (
-            <div key={course.id} className="bg-card border border-border rounded-3xl p-6 space-y-4 hover:border-primary/20 transition-all">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-mono font-bold">{course.id}</span>
-                  <h4 className="font-bold text-base mt-2">{course.name}</h4>
-                </div>
-                <span className="text-xs font-semibold text-muted-foreground">{course.studentsCount} Students</span>
-              </div>
+        {courses.length === 0 ? (
+          <div className="p-8 text-center text-xs text-muted-foreground bg-card border border-border rounded-3xl">
+            <p>No courses available. Click "Create Course" to add one.</p>
+          </div>
+        ) : (
+          sortedGroupKeys.map(groupKey => (
+            <div key={groupKey} className="space-y-4">
+              <h4 className="font-bold text-sm text-primary border-b border-border/50 pb-2">{groupKey}</h4>
+              <div className="grid md:grid-cols-3 gap-6">
+                {groupedCourses[groupKey].map(course => (
+                  <div key={course.id} className="bg-muted/5 border border-border/50 rounded-2xl p-5 hover:border-border transition-colors">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        {course.code && <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">{course.code}</div>}
+                        <h4 className="font-bold text-foreground text-sm">{course.name}</h4>
+                        <span className="text-[10px] text-muted-foreground">{course.department || 'General'} • {course.year} • {course.semester}</span>
+                      </div>
+                      <span className="text-xs font-semibold text-muted-foreground">{course.studentsCount} Students</span>
+                    </div>
 
-              <div className="space-y-2 border-t border-border/50 pt-3 text-xs">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Lecturer:</span>
-                  <span className="text-foreground font-semibold">{course.lecturer}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Avg Attendance:</span>
-                  <span className="text-emerald-400 font-bold">{course.attendance}%</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Avg Engagement:</span>
-                  <span className="text-indigo-400 font-bold">{course.engagement}%</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Subjects:</span>
-                  <span className="text-foreground truncate max-w-[120px]">{course.subjects.join(", ")}</span>
-                </div>
-              </div>
+                    <div className="space-y-2 border-t border-border/50 pt-3 text-xs">
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Lecturer:</span>
+                        <span className="text-foreground font-semibold truncate max-w-[150px] text-right">{course.lecturer}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Avg Attendance:</span>
+                        <span className="text-emerald-400 font-bold">--</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Avg Engagement:</span>
+                        <span className="text-indigo-400 font-bold">--</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Subjects:</span>
+                        <span className="text-foreground truncate max-w-[120px] text-right">{course.subjects.join(", ")}</span>
+                      </div>
+                    </div>
 
-              <div className="flex gap-2 justify-end pt-2 border-t border-border/30">
-                <button onClick={() => alert(`Course Archive: ${course.name}\n\nAll historical sessions have been processed.`)} className="bg-white/5 border border-border hover:bg-white/10 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer">Archive</button>
-                <button onClick={() => alert(`Analytics details:\n\nAttendance: ${course.attendance}%\nEngagement: ${course.engagement}%`)} className="bg-primary/10 text-primary hover:bg-primary/20 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer">Analytics</button>
+                    <div className="flex gap-2 justify-end pt-2 border-t border-border/30">
+                      <button onClick={() => onEditCourse && onEditCourse(course)} className="bg-accent/10 text-accent hover:bg-accent/20 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer">Edit</button>
+                      <button onClick={() => alert(`Course Archive: ${course.name}\n\nAll historical sessions have been processed.`)} className="bg-white/5 border border-border hover:bg-white/10 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer">Archive</button>
+                      <button onClick={() => alert(`Analytics details:\n\nAttendance: ${course.attendance}%\nEngagement: ${course.engagement}%`)} className="bg-primary/10 text-primary hover:bg-primary/20 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer">Analytics</button>
+                      <button onClick={() => onDeleteCourse && onDeleteCourse(course.id)} className="bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
+          ))
+        )}
       </div>
     );
   }
@@ -393,56 +429,79 @@ export function EducationAdminDashboard({
   if (activeTab === "analytics") {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-card border border-border rounded-2xl p-4">
-            <span className="text-muted-foreground block text-[10px] uppercase font-bold">Course Engagement</span>
-            <span className="text-lg font-bold text-indigo-400">84.2%</span>
+        <div className="bg-card border border-border rounded-3xl p-12 text-center space-y-4">
+          <div className="w-16 h-16 bg-muted/20 rounded-full flex items-center justify-center mx-auto text-muted-foreground">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
           </div>
-          <div className="bg-card border border-border rounded-2xl p-4">
-            <span className="text-muted-foreground block text-[10px] uppercase font-bold">Avg Understanding</span>
-            <span className="text-lg font-bold text-accent">81.5%</span>
-          </div>
-          <div className="bg-card border border-border rounded-2xl p-4">
-            <span className="text-muted-foreground block text-[10px] uppercase font-bold">Question Frequency</span>
-            <span className="text-lg font-bold text-primary">45 / week</span>
-          </div>
-          <div className="bg-card border border-border rounded-2xl p-4">
-            <span className="text-muted-foreground block text-[10px] uppercase font-bold">Smart Attendance Index</span>
-            <span className="text-lg font-bold text-emerald-400">89.8%</span>
+          <h3 className="font-bold text-foreground">Analytics Unavailable</h3>
+          <p className="text-muted-foreground text-xs max-w-md mx-auto">
+            Not enough data has been collected yet. As students attend sessions and interact with the platform, comprehensive analytics will appear here.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeTab === "departments") {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-bold text-sm">Manage Departments</h3>
+            <p className="text-xs text-muted-foreground">Define the departments that exist within your faculty. These will be available in dropdowns when adding students, lecturers, or courses.</p>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          <div className="bg-card border border-border rounded-3xl p-6 space-y-4">
-            <h4 className="font-bold text-sm">Attendance Trends (Monthly)</h4>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={attendanceTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="month" />
-                  <YAxis domain={[50, 100]} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="attendance" stroke="#6366F1" strokeWidth={2.5} name="Attendance %" />
-                  <Line type="monotone" dataKey="engagement" stroke="#22D3EE" strokeWidth={2.5} name="Engagement %" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+        <div className="bg-card border border-border rounded-3xl p-6 space-y-6">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
+            <input
+              value={newDepartmentName}
+              onChange={(e) => setNewDepartmentName(e.target.value)}
+              placeholder="e.g. Faculty of Medicine"
+              className="flex-1 bg-input border border-border px-4 py-2 text-xs rounded-xl outline-none"
+            />
+            <button
+              onClick={() => {
+                if (newDepartmentName.trim() && createDepartment) {
+                  createDepartment(newDepartmentName.trim());
+                  setNewDepartmentName("");
+                }
+              }}
+              className="bg-primary text-white hover:opacity-90 px-4 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer w-full sm:w-auto"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Department
+            </button>
           </div>
 
-          <div className="bg-card border border-border rounded-3xl p-6 space-y-4">
-            <h4 className="font-bold text-sm">Department Comparison Metrics</h4>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={departmentComparisonData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="avgUnderstanding" fill="#8B5CF6" radius={[4, 4, 0, 0]} name="Understanding %" />
-                  <Bar dataKey="engagement" fill="#22D3EE" radius={[4, 4, 0, 0]} name="Engagement %" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {departments && departments.length > 0 ? (
+              departments.map(dept => (
+                <div key={dept.id} className="bg-muted/5 border border-border/50 rounded-2xl p-4 flex items-center justify-between hover:border-border transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                      <Building className="w-4 h-4" />
+                    </div>
+                    <span className="font-bold text-sm text-foreground truncate">{dept.name}</span>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to delete ${dept.name}?`) && deleteDepartment) {
+                        deleteDepartment(dept.id);
+                      }
+                    }} 
+                    className="text-rose-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                    title="Delete Department"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full p-8 text-center text-xs text-muted-foreground bg-background border border-border/50 rounded-2xl">
+                <Building className="w-8 h-8 mx-auto mb-3 opacity-20" />
+                <p>No departments defined yet. Add one above.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

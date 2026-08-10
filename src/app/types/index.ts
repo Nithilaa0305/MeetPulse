@@ -9,6 +9,11 @@ export interface Student {
   email: string;
   course: string;
   lecturer: string;
+  year?: string;
+  semester?: string;
+  department?: string;
+  emp_id?: string;
+  isPending?: boolean;
   attendance: number;
   engagement: number;
   participation: number;
@@ -20,6 +25,9 @@ export interface Student {
 export interface Lecturer {
   id: string;
   name: string;
+  emp_id?: string;
+  isPending?: boolean;
+  department?: string;
   courses: string[];
   subjects: string[];
   attendance: number;
@@ -30,8 +38,13 @@ export interface Lecturer {
 export interface Course {
   id: string;
   name: string;
+  code?: string;
   studentsCount: number;
   lecturer: string;
+  lecturer_id?: string;
+  year?: string;
+  semester?: string;
+  department?: string;
   subjects: string[];
   sessionsCount: number;
   attendance: number;
@@ -79,6 +92,7 @@ export interface LivePoll {
 }
 
 export interface Employee {
+  id: string;
   name: string;
   dept: string;
   meetings: number;
@@ -86,6 +100,7 @@ export interface Employee {
   tasks: number;
   manager: string;
   status: string;
+  isPending?: boolean;
 }
 
 export interface TranscriptSegment {

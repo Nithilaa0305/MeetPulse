@@ -54,7 +54,10 @@ export function AppShell() {
   // Data Store
   const { 
     students, setStudents, lecturers, setLecturers, courses, setCourses, 
-    employees, setEmployees, sessions, setSessions, fetchData 
+    departments, employees, setEmployees, sessions, setSessions, fetchData,
+    updateUserProfile, deleteUserProfile,
+    createStudent, createLecturer, createCourse, createEmployee,
+    updateCourse, deleteCourse, createDepartment, deleteDepartment
   } = useDataStore();
 
   useEffect(() => {
@@ -108,14 +111,35 @@ export function AppShell() {
   const [showCSVModal, setShowCSVModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
+  // Edit Modals
+  const [showEditStudent, setShowEditStudent] = useState(false);
+  const [editStudent, setEditStudent] = useState<Student | null>(null);
+
+  const [showEditCourse, setShowEditCourse] = useState(false);
+  const [editCourse, setEditCourse] = useState<Course | null>(null);
+
+  const [showEditLecturer, setShowEditLecturer] = useState(false);
+  const [editLecturer, setEditLecturer] = useState<Lecturer | null>(null);
+
   // Form states
   const [newStudentName, setNewStudentName] = useState("");
   const [newStudentEmail, setNewStudentEmail] = useState("");
+  const [newStudentYear, setNewStudentYear] = useState("1st Year");
+  const [newStudentSemester, setNewStudentSemester] = useState("Semester 1");
+  const [newStudentDepartment, setNewStudentDepartment] = useState("");
+  const [newStudentCourseId, setNewStudentCourseId] = useState("");
   const [newLecturerName, setNewLecturerName] = useState("");
+  const [newLecturerEmail, setNewLecturerEmail] = useState("");
+  const [newLecturerEmpId, setNewLecturerEmpId] = useState("");
+  const [newLecturerDepartment, setNewLecturerDepartment] = useState("");
   const [newLecturerSubject, setNewLecturerSubject] = useState("");
   const [newLecturerCourse, setNewLecturerCourse] = useState("");
   const [newCourseName, setNewCourseName] = useState("");
   const [newCourseCode, setNewCourseCode] = useState("");
+  const [newCourseDepartment, setNewCourseDepartment] = useState("");
+  const [newCourseYear, setNewCourseYear] = useState("1st Year");
+  const [newCourseSemester, setNewCourseSemester] = useState("Semester 1");
+  const [newCourseLecturerId, setNewCourseLecturerId] = useState("");
   const [newSessionName, setNewSessionName] = useState("");
   const [newSessionCourse, setNewSessionCourse] = useState("CS401 Deep Learning");
   const [newSessionSubject, setNewSessionSubject] = useState("Introduction");
@@ -138,19 +162,23 @@ export function AppShell() {
   const [compareLec2, setCompareLec2] = useState("LEC002");
 
   const handleAssignCourse = (id: string, course: string) => {
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, course } : s));
+    updateUserProfile(id, { assigned_course: course });
   };
 
   const handleAssignLecturer = (id: string, lecturer: string) => {
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, lecturer } : s));
+    updateUserProfile(id, { assigned_lecturer: lecturer });
   };
 
   const handleSuspendStudent = (id: string) => {
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, status: s.status === "active" ? "suspended" : "active" } : s));
+    const student = students.find(s => s.id === id) || employees.find(e => e.id === id);
+    if (student) {
+      updateUserProfile(id, { status: student.status === "active" ? "suspended" : "active" }, student.isPending);
+    }
   };
 
   const handleDeleteStudent = (id: string) => {
-    setStudents(prev => prev.filter(s => s.id !== id));
+    const isPending = students.find(s => s.id === id)?.isPending || employees.find(e => e.id === id)?.isPending;
+    deleteUserProfile(id, isPending);
   };
 
   const getSidebarTabs = () => {
@@ -169,6 +197,7 @@ export function AppShell() {
           { id: "students", label: "Student Management", icon: Users },
           { id: "lecturers", label: "Lecturer Management", icon: Award },
           { id: "courses", label: "Course Management", icon: BookOpen },
+          { id: "departments", label: "Departments", icon: Building },
           { id: "analytics", label: "Institution Analytics", icon: BarChart2 }
         ];
       } else if (role === "presenter") {
@@ -411,6 +440,22 @@ export function AppShell() {
               handleSuspendStudent={handleSuspendStudent}
               handleDeleteStudent={handleDeleteStudent}
               calculateSmartAttendanceScore={calculateSmartAttendanceScore}
+              onEditStudent={(s) => { setEditStudent(s); setShowEditStudent(true); }}
+              onEditCourse={(c) => { setEditCourse(c); setShowEditCourse(true); }}
+              onEditLecturer={(lec) => {
+                setEditLecturer(lec);
+                setShowEditLecturer(true);
+              }}
+              onDeleteCourse={deleteCourse}
+              onDeleteLecturer={(id) => {
+                if (confirm("Are you sure you want to delete this lecturer?")) {
+                  const isPending = lecturers.find(l => l.id === id)?.isPending;
+                  deleteUserProfile(id, isPending);
+                }
+              }}
+              departments={departments}
+              createDepartment={createDepartment}
+              deleteDepartment={deleteDepartment}
             />
           )}
 
@@ -608,6 +653,466 @@ export function AppShell() {
                     Delete
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Student Floating Modal */}
+      <AnimatePresence>
+        {showCreateStudent && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="w-full max-w-md bg-card border border-border rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-border pb-3">
+                <h3 className="font-bold text-sm text-foreground">Create Student</h3>
+                <button onClick={() => setShowCreateStudent(false)} className="text-muted-foreground hover:text-foreground cursor-pointer p-1 rounded-lg">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">FULL NAME</label>
+                    <input value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="Alice Johnson" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">EMAIL ADDRESS</label>
+                    <input type="email" value={newStudentEmail} onChange={e => setNewStudentEmail(e.target.value)} placeholder="alice@university.edu" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">YEAR</label>
+                    <select value={newStudentYear} onChange={e => {
+                      setNewStudentYear(e.target.value);
+                      setNewStudentCourseId("");
+                    }} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                      <option value="1st Year">1st Year</option>
+                      <option value="2nd Year">2nd Year</option>
+                      <option value="3rd Year">3rd Year</option>
+                      <option value="4th Year">4th Year</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">SEMESTER</label>
+                    <select value={newStudentSemester} onChange={e => {
+                      setNewStudentSemester(e.target.value);
+                      setNewStudentCourseId("");
+                    }} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                      <option value="Semester 1">Semester 1</option>
+                      <option value="Semester 2">Semester 2</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">DEPARTMENT</label>
+                  <select value={newStudentDepartment} onChange={e => setNewStudentDepartment(e.target.value)} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                    <option value="">Select Department</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">ASSIGN COURSE</label>
+                  <select value={newStudentCourseId} onChange={e => setNewStudentCourseId(e.target.value)} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                    <option value="">Unassigned</option>
+                    {courses
+                      .filter(c => c.year === newStudentYear && c.semester === newStudentSemester)
+                      .map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setShowCreateStudent(false)} className="bg-white/5 border border-border hover:bg-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onClick={() => {
+                  if (newStudentName && newStudentEmail) {
+                    const selectedCourse = courses.find(c => c.id === newStudentCourseId);
+                    const courseName = selectedCourse ? selectedCourse.name : "Unassigned";
+                    const lecturerName = selectedCourse ? selectedCourse.lecturer : "Unassigned";
+                    
+                    createStudent(newStudentName, newStudentEmail, newStudentYear, newStudentSemester, newStudentDepartment, courseName, lecturerName);
+                    
+                    setNewStudentName("");
+                    setNewStudentEmail("");
+                    setNewStudentCourseId("");
+                    setNewStudentDepartment("");
+                    setShowCreateStudent(false);
+                  }
+                }} className="bg-primary text-white hover:opacity-90 px-4 py-1.5 rounded-xl text-xs font-bold">Create Student</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Lecturer Floating Modal */}
+      <AnimatePresence>
+        {showCreateLecturer && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="w-full max-w-md bg-card border border-border rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-border pb-3">
+                <h3 className="font-bold text-sm text-foreground">Add Lecturer</h3>
+                <button onClick={() => setShowCreateLecturer(false)} className="text-muted-foreground hover:text-foreground cursor-pointer p-1 rounded-lg">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">FULL NAME</label>
+                  <input value={newLecturerName} onChange={e => setNewLecturerName(e.target.value)} placeholder="Dr. John Smith" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">EMAIL ADDRESS</label>
+                    <input type="email" value={newLecturerEmail} onChange={e => setNewLecturerEmail(e.target.value)} placeholder="john@univ.edu" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">COURSE ID</label>
+                    <input value={newLecturerEmpId} onChange={e => setNewLecturerEmpId(e.target.value)} placeholder="CS401" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">DEPARTMENT</label>
+                  <select value={newLecturerDepartment} onChange={e => setNewLecturerDepartment(e.target.value)} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                    <option value="">Select Department</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">PRIMARY SUBJECT</label>
+                  <input value={newLecturerSubject} onChange={e => setNewLecturerSubject(e.target.value)} placeholder="Deep Learning" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setShowCreateLecturer(false)} className="bg-white/5 border border-border hover:bg-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onClick={() => {
+                  if (newLecturerName && newLecturerEmail && newLecturerEmpId && newLecturerSubject) {
+                    createLecturer(newLecturerName, newLecturerEmail, newLecturerEmpId, newLecturerDepartment, newLecturerSubject);
+                    setNewLecturerName("");
+                    setNewLecturerEmail("");
+                    setNewLecturerEmpId("");
+                    setNewLecturerDepartment("");
+                    setNewLecturerSubject("");
+                    setShowCreateLecturer(false);
+                  }
+                }} className="bg-primary text-white hover:opacity-90 px-4 py-1.5 rounded-xl text-xs font-bold">Add Faculty</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Course Floating Modal */}
+      <AnimatePresence>
+        {showCreateCourse && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="w-full max-w-md bg-card border border-border rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-border pb-3">
+                <h3 className="font-bold text-sm text-foreground">Create Course</h3>
+                <button onClick={() => setShowCreateCourse(false)} className="text-muted-foreground hover:text-foreground cursor-pointer p-1 rounded-lg">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">COURSE CODE</label>
+                    <input value={newCourseCode} onChange={e => setNewCourseCode(e.target.value)} placeholder="CS401" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">COURSE NAME</label>
+                    <input value={newCourseName} onChange={e => setNewCourseName(e.target.value)} placeholder="Deep Learning" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">YEAR</label>
+                    <select value={newCourseYear} onChange={e => setNewCourseYear(e.target.value)} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                      <option value="1st Year">1st Year</option>
+                      <option value="2nd Year">2nd Year</option>
+                      <option value="3rd Year">3rd Year</option>
+                      <option value="4th Year">4th Year</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">SEMESTER</label>
+                    <select value={newCourseSemester} onChange={e => setNewCourseSemester(e.target.value)} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                      <option value="Semester 1">Semester 1</option>
+                      <option value="Semester 2">Semester 2</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">DEPARTMENT</label>
+                  <select value={newCourseDepartment} onChange={e => setNewCourseDepartment(e.target.value)} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                    <option value="">Select Department</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">ASSIGN LECTURER</label>
+                  <select value={newCourseLecturerId} onChange={e => setNewCourseLecturerId(e.target.value)} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                    <option value="">Unassigned</option>
+                    {lecturers.map(l => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setShowCreateCourse(false)} className="bg-white/5 border border-border hover:bg-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onClick={() => {
+                  if (newCourseName && newCourseCode) {
+                    const lecturerName = lecturers.find(l => l.id === newCourseLecturerId)?.name || "Unassigned";
+                    createCourse(newCourseName, newCourseCode, newCourseYear, newCourseSemester, newCourseDepartment, newCourseLecturerId, lecturerName);
+                    setNewCourseName("");
+                    setNewCourseCode("");
+                    setNewCourseDepartment("");
+                    setNewCourseLecturerId("");
+                    setShowCreateCourse(false);
+                  }
+                }} className="bg-primary text-white hover:opacity-90 px-4 py-1.5 rounded-xl text-xs font-bold">Create Course</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Invite Employee / Add Employee Floating Modal */}
+      <AnimatePresence>
+        {showEmployeeModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="w-full max-w-md bg-card border border-border rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-border pb-3">
+                <h3 className="font-bold text-sm text-foreground">Invite Employee</h3>
+                <button onClick={() => setShowEmployeeModal(false)} className="text-muted-foreground hover:text-foreground cursor-pointer p-1 rounded-lg">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">EMPLOYEE NAME</label>
+                  <input value={newEmpName} onChange={e => setNewEmpName(e.target.value)} placeholder="Sarah Jenkins" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">DEPARTMENT</label>
+                  <input value={newEmpDept} onChange={e => setNewEmpDept(e.target.value)} placeholder="Engineering" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">MANAGER</label>
+                  <input value={newEmpManager} onChange={e => setNewEmpManager(e.target.value)} placeholder="John Doe" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setShowEmployeeModal(false)} className="bg-white/5 border border-border hover:bg-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onClick={() => {
+                  if (newEmpName) {
+                    createEmployee(newEmpName, newEmpDept, newEmpManager);
+                    setNewEmpName("");
+                    setNewEmpManager("");
+                    setShowEmployeeModal(false);
+                  }
+                }} className="bg-primary text-white hover:opacity-90 px-4 py-1.5 rounded-xl text-xs font-bold">Invite Employee</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Student Floating Modal */}
+      <AnimatePresence>
+        {showEditStudent && editStudent && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="w-full max-w-md bg-card border border-border rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-border pb-3">
+                <h3 className="font-bold text-sm text-foreground">Edit Student</h3>
+                <button onClick={() => setShowEditStudent(false)} className="text-muted-foreground hover:text-foreground cursor-pointer p-1 rounded-lg">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">FULL NAME</label>
+                    <input value={editStudent.name} onChange={e => setEditStudent({ ...editStudent, name: e.target.value })} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">EMAIL ADDRESS</label>
+                    <input type="email" value={editStudent.email} onChange={e => setEditStudent({ ...editStudent, email: e.target.value })} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">YEAR</label>
+                    <select value={editStudent.year || "1st Year"} onChange={e => setEditStudent({ ...editStudent, year: e.target.value, course: "Unassigned" })} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                      <option value="1st Year">1st Year</option>
+                      <option value="2nd Year">2nd Year</option>
+                      <option value="3rd Year">3rd Year</option>
+                      <option value="4th Year">4th Year</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">SEMESTER</label>
+                    <select value={editStudent.semester || "Semester 1"} onChange={e => setEditStudent({ ...editStudent, semester: e.target.value, course: "Unassigned" })} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                      <option value="Semester 1">Semester 1</option>
+                      <option value="Semester 2">Semester 2</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">ASSIGN COURSE</label>
+                  <select value={editStudent.course} onChange={e => setEditStudent({ ...editStudent, course: e.target.value })} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                    <option value="Unassigned">Unassigned</option>
+                    {courses
+                      .filter(c => c.year === editStudent.year && c.semester === editStudent.semester)
+                      .map(c => (
+                        <option key={c.name} value={c.name}>{c.name}</option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setShowEditStudent(false)} className="bg-white/5 border border-border hover:bg-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onClick={() => {
+                  const selectedCourse = courses.find(c => c.name === editStudent.course);
+                  updateUserProfile(editStudent.id, { 
+                    full_name: editStudent.name, 
+                    email: editStudent.email,
+                    year: editStudent.year,
+                    semester: editStudent.semester,
+                    assigned_course: editStudent.course,
+                    assigned_lecturer: selectedCourse ? selectedCourse.lecturer : "Unassigned"
+                  });
+                  setShowEditStudent(false);
+                }} className="bg-primary text-white hover:opacity-90 px-4 py-1.5 rounded-xl text-xs font-bold">Save Changes</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Course Floating Modal */}
+      <AnimatePresence>
+        {showEditCourse && editCourse && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="w-full max-w-md bg-card border border-border rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-border pb-3">
+                <h3 className="font-bold text-sm text-foreground">Edit Course</h3>
+                <button onClick={() => setShowEditCourse(false)} className="text-muted-foreground hover:text-foreground cursor-pointer p-1 rounded-lg">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">COURSE CODE</label>
+                    <input value={editCourse.code || ''} onChange={e => setEditCourse({ ...editCourse, code: e.target.value })} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">COURSE NAME</label>
+                    <input value={editCourse.name} onChange={e => setEditCourse({ ...editCourse, name: e.target.value })} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">YEAR</label>
+                    <select value={editCourse.year || "1st Year"} onChange={e => setEditCourse({ ...editCourse, year: e.target.value })} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                      <option value="1st Year">1st Year</option>
+                      <option value="2nd Year">2nd Year</option>
+                      <option value="3rd Year">3rd Year</option>
+                      <option value="4th Year">4th Year</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">SEMESTER</label>
+                    <select value={editCourse.semester || "Semester 1"} onChange={e => setEditCourse({ ...editCourse, semester: e.target.value })} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                      <option value="Semester 1">Semester 1</option>
+                      <option value="Semester 2">Semester 2</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">ASSIGN LECTURER</label>
+                  <select value={editCourse.lecturer_id || ""} onChange={e => {
+                    const l = lecturers.find(l => l.id === e.target.value);
+                    setEditCourse({ ...editCourse, lecturer_id: e.target.value, lecturer: l ? l.name : "Unassigned" });
+                  }} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none appearance-none">
+                    <option value="">Unassigned</option>
+                    {lecturers.map(l => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setShowEditCourse(false)} className="bg-white/5 border border-border hover:bg-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onClick={() => {
+                  updateCourse(editCourse.id, { 
+                    name: editCourse.name,
+                    code: editCourse.code,
+                    year: editCourse.year,
+                    semester: editCourse.semester,
+                    lecturer_id: editCourse.lecturer_id || null,
+                    lecturer_name: editCourse.lecturer
+                  });
+                  setShowEditCourse(false);
+                }} className="bg-primary text-white hover:opacity-90 px-4 py-1.5 rounded-xl text-xs font-bold">Save Changes</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Lecturer Floating Modal */}
+      <AnimatePresence>
+        {showEditLecturer && editLecturer && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="w-full max-w-md bg-card border border-border rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-border pb-3">
+                <h3 className="font-bold text-sm text-foreground">Edit Lecturer</h3>
+                <button onClick={() => setShowEditLecturer(false)} className="text-muted-foreground hover:text-foreground cursor-pointer p-1 rounded-lg">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">FULL NAME</label>
+                    <input value={editLecturer.name} onChange={e => setEditLecturer({ ...editLecturer, name: e.target.value })} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">EMPLOYEE ID / CODE</label>
+                    <input value={editLecturer.emp_id || ''} onChange={e => setEditLecturer({ ...editLecturer, emp_id: e.target.value })} className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setShowEditLecturer(false)} className="bg-white/5 border border-border hover:bg-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onClick={() => {
+                  updateUserProfile(editLecturer.id, { 
+                    full_name: editLecturer.name,
+                    emp_id: editLecturer.emp_id || null
+                  }, editLecturer.isPending);
+                  setShowEditLecturer(false);
+                }} className="bg-primary text-white hover:opacity-90 px-4 py-1.5 rounded-xl text-xs font-bold">Save Changes</button>
               </div>
             </motion.div>
           </motion.div>

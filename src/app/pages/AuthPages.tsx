@@ -61,7 +61,7 @@ export function AuthPage({
             .eq('id', authData.user.id)
             .single();
             
-          if (profile?.org_type && profile?.role) {
+          if (profile?.org_type && profile?.role && profile?.organization_name !== null) {
             onDirectApp ? onDirectApp() : onNext();
             return;
           }
@@ -70,7 +70,8 @@ export function AuthPage({
         onNext();
       }
     } catch (err: any) {
-      setError(err.message || "An error occurred during authentication.");
+      const msg = err.message || (typeof err === 'string' ? err : JSON.stringify(err));
+      setError(typeof msg === 'object' ? JSON.stringify(msg) : msg);
     } finally {
       setLoading(false);
     }

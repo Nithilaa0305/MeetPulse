@@ -61,6 +61,18 @@ export function StudentParticipantDashboard({
   activeQuiz?: QuizQuestion[];
 }) {
   const user = useAuthStore((state) => state.user);
+  const students = useDataStore((state) => state.students);
+  const courses = useDataStore((state) => state.courses);
+
+  const canJoinSession = (session: Session) => {
+    if (!user) return false;
+    const student = students.find(s => s.id === user.id);
+    if (!student) return true; // fallback if student profile not found in store
+    const course = courses.find(c => c.name === session.course);
+    if (!course) return true; // fallback if course not found
+    return course.year === student.year && course.semester === student.semester;
+  };
+
   const userName = user?.name || "Student";
   const [joinCode, setJoinCode] = React.useState("");
   const currentSession = sessions.find(s => s.id === liveSessionId) || sessions[0];
@@ -178,11 +190,21 @@ export function StudentParticipantDashboard({
                   // Search for an active live session first
                   const liveSess = sessions.find(s => s.status === 'live' || s.time?.toLowerCase().includes('live'));
                   if (liveSess) {
-                    setLiveSessionId(liveSess.id);
-                    alert(`QR Scanned! Joined live session: "${liveSess.name}"`);
+                    if (canJoinSession(liveSess)) {
+                      setLiveSessionId(liveSess.id);
+                      alert(`QR Scanned! Joined live session: "${liveSess.name}"`);
+                    } else {
+                      alert("You are not authorized to join this session. It belongs to a different Year or Semester.");
+                      return;
+                    }
                   } else if (sessions.length > 0) {
-                    setLiveSessionId(sessions[0].id);
-                    alert(`QR Scanned! Joined session: "${sessions[0].name}"`);
+                    if (canJoinSession(sessions[0])) {
+                      setLiveSessionId(sessions[0].id);
+                      alert(`QR Scanned! Joined session: "${sessions[0].name}"`);
+                    } else {
+                      alert("You are not authorized to join this session. It belongs to a different Year or Semester.");
+                      return;
+                    }
                   } else {
                     setLiveSessionId("SESS-101");
                     alert("QR Scanned! Logged in immediately. Attendance is starting.");
@@ -226,9 +248,13 @@ export function StudentParticipantDashboard({
                 }
 
                 if (found) {
-                  setLiveSessionId(found.id);
-                  alert(`Session "${found.name}" joined successfully!`);
-                  setActiveTab("live");
+                  if (canJoinSession(found)) {
+                    setLiveSessionId(found.id);
+                    alert(`Session "${found.name}" joined successfully!`);
+                    setActiveTab("live");
+                  } else {
+                    alert("You are not authorized to join this session. It belongs to a different Year or Semester.");
+                  }
                 } else {
                   alert("Session code not found. Please double check the Meeting ID on the Presenter's screen.");
                 }
