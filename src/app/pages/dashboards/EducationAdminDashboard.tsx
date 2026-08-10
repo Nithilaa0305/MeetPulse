@@ -457,7 +457,7 @@ export function EducationAdminDashboard({
             <input
               value={newDepartmentName}
               onChange={(e) => setNewDepartmentName(e.target.value)}
-              placeholder="e.g. Faculty of Medicine"
+              placeholder="e.g. Computer Engineering"
               className="flex-1 bg-input border border-border px-4 py-2 text-xs rounded-xl outline-none"
             />
             <button
