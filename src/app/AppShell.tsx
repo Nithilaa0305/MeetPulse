@@ -420,7 +420,6 @@ export function AppShell() {
               students={students}
               lecturers={lecturers}
               courses={courses}
-              sessions={sessions}
               liveSessionId={liveSessionId}
               activityFeed={activityFeed}
               studentSearch={studentSearch}

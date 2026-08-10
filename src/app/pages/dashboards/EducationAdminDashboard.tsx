@@ -429,6 +429,14 @@ export function EducationAdminDashboard({
   if (activeTab === "analytics") {
     // 1. Compute dynamic Department Stats
     const deptMap: Record<string, { totalAtt: number; totalEng: number; count: number }> = {};
+    
+    // Initialize with all departments from management
+    if (departments) {
+      departments.forEach(d => {
+        deptMap[d.name] = { totalAtt: 0, totalEng: 0, count: 0 };
+      });
+    }
+
     students.forEach(s => {
       const deptName = s.department && s.department !== "Unassigned" ? s.department : "Unassigned";
       if (!deptMap[deptName]) {
