@@ -775,8 +775,8 @@ export function AppShell() {
                     <input type="email" value={newLecturerEmail} onChange={e => setNewLecturerEmail(e.target.value)} placeholder="john@univ.edu" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400">COURSE ID</label>
-                    <input value={newLecturerEmpId} onChange={e => setNewLecturerEmpId(e.target.value)} placeholder="CS401" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
+                    <label className="text-[10px] font-bold text-slate-400">EMPLOYEE ID</label>
+                    <input value={newLecturerEmpId} onChange={e => setNewLecturerEmpId(e.target.value)} placeholder="EMP101" className="w-full bg-input border border-border px-3 py-2 text-xs rounded-xl outline-none" />
                   </div>
                 </div>
                 <div className="space-y-1">
