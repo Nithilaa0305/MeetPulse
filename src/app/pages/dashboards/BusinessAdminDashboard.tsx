@@ -2,40 +2,83 @@ import React from "react";
 import { Users, Building, MessageSquare, Activity, CheckSquare, Plus } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 import { StatCard } from "../../components/common/CommonUI";
-import { Employee } from "../../types";
-import { attendanceTrendData } from "../../data/mockData";
+import { Employee, Session } from "../../types";
 
 export function BusinessAdminDashboard({
   activeTab,
   employees,
+  sessions,
   activityFeed,
   setShowEmployeeModal
 }: {
   activeTab: string;
   employees: Employee[];
+  sessions: Session[];
   activityFeed: { time: string; text: string }[];
   setShowEmployeeModal: (b: boolean) => void;
 }) {
+  // ── Derived stats from real data ────────────────────────────────────────────
+  const today = new Date().toISOString().split("T")[0];
+  const thisMonthStart = new Date();
+  thisMonthStart.setDate(1);
+  const thisMonthStr = thisMonthStart.toISOString().split("T")[0];
+
+  const totalDepartments = new Set(employees.map(e => e.dept).filter(Boolean)).size;
+
+  const avgEngagement = employees.length > 0
+    ? (employees.reduce((acc, e) => acc + (e.eng || 0), 0) / employees.length).toFixed(1)
+    : "0.0";
+
+  const todaysSessions = sessions.filter(s => s.date === today);
+  const completedToday = sessions.filter(s => s.date === today && s.status === "ended");
+  const meetingsThisMonth = sessions.filter(s => s.date >= thisMonthStr).length;
+
+  // Participation index: avg pulseScore across ended sessions this month
+  const endedThisMonth = sessions.filter(s => s.date >= thisMonthStr && s.status === "ended" && s.analytics);
+  const participationIndex = endedThisMonth.length > 0
+    ? (endedThisMonth.reduce((acc, s) => acc + (s.analytics?.pulseScore || 0), 0) / endedThisMonth.length).toFixed(1)
+    : null;
+
+  // Monthly chart data from real sessions
+  const monthlyData = React.useMemo(() => {
+    const monthMap: Record<string, { engagement: number; count: number }> = {};
+    sessions.forEach(s => {
+      if (!s.date) return;
+      const d = new Date(s.date);
+      const key = d.toLocaleString("default", { month: "short" });
+      if (!monthMap[key]) monthMap[key] = { engagement: 0, count: 0 };
+      monthMap[key].engagement += s.analytics?.pulseScore || 0;
+      monthMap[key].count += 1;
+    });
+    return Object.entries(monthMap)
+      .map(([month, v]) => ({
+        month,
+        engagement: v.count > 0 ? Math.round(v.engagement / v.count) : 0,
+      }))
+      .slice(-6);
+  }, [sessions]);
+
   if (activeTab === "overview") {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <StatCard label="Total Employees" value={employees.length.toString()} change="+2 active now" icon={Users} gradient="from-blue-500 to-cyan-500" />
-          <StatCard label="Total Departments" value="5" change="Optimal" icon={Building} gradient="from-indigo-500 to-purple-500" />
-          <StatCard label="Meetings Today" value="4 Meetings" change="2 completed" icon={MessageSquare} gradient="from-purple-500 to-pink-500" />
-          <StatCard label="Avg Engagement" value="81.4%" change="Stable productivity" icon={Activity} gradient="from-rose-500 to-orange-500" />
-          <StatCard label="Completion Rate" value="94.2%" change="↑ 1.8% vs last week" icon={CheckSquare} gradient="from-emerald-500 to-teal-500" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="Total Employees" value={employees.length.toString()} change={employees.length > 0 ? "Active members" : "No employees yet"} icon={Users} gradient="from-blue-500 to-cyan-500" />
+          <StatCard label="Total Departments" value={totalDepartments > 0 ? totalDepartments.toString() : "—"} change={totalDepartments > 0 ? "Across organisation" : "No departments yet"} icon={Building} gradient="from-indigo-500 to-purple-500" />
+          <StatCard label="Meetings Today" value={todaysSessions.length > 0 ? `${todaysSessions.length}` : "—"} change={completedToday.length > 0 ? `${completedToday.length} completed` : "None completed yet"} icon={MessageSquare} gradient="from-purple-500 to-pink-500" />
+          <StatCard label="Avg Engagement" value={parseFloat(avgEngagement) > 0 ? `${avgEngagement}%` : "—"} change={employees.length > 0 ? "Across all employees" : "No data"} icon={Activity} gradient="from-rose-500 to-orange-500" />
         </div>
 
         <div className="bg-card border border-border rounded-3xl p-6 space-y-4">
           <h3 className="font-bold text-sm">Corporate Meeting Summary Feed</h3>
           <div className="space-y-3 text-xs">
-            {activityFeed.slice(0, 3).map((act, i) => (
+            {activityFeed.length > 0 ? activityFeed.slice(0, 3).map((act, i) => (
               <div key={i} className="flex justify-between items-center p-3 bg-background border border-border rounded-xl">
                 <span>{act.text}</span>
                 <span className="text-[10px] text-muted-foreground">{act.time}</span>
               </div>
-            ))}
+            )) : (
+              <p className="text-center py-4 text-muted-foreground">No activity yet. Start a live session to see real-time logs.</p>
+            )}
           </div>
         </div>
       </div>
@@ -71,13 +114,20 @@ export function BusinessAdminDashboard({
               {employees.map(emp => (
                 <tr key={emp.name}>
                   <td className="py-3 font-semibold">{emp.name}</td>
-                  <td className="py-3">{emp.dept}</td>
-                  <td className="py-3 text-muted-foreground">{emp.manager}</td>
+                  <td className="py-3">{emp.dept || "—"}</td>
+                  <td className="py-3 text-muted-foreground">{emp.manager || "—"}</td>
                   <td className="py-3 font-mono">{emp.meetings}</td>
                   <td className="py-3 font-mono font-bold text-indigo-400">{emp.eng}%</td>
                   <td className="py-3 font-mono">{emp.tasks}</td>
                 </tr>
               ))}
+              {employees.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">
+                    No employees yet. Invite employees to get started.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -92,29 +142,42 @@ export function BusinessAdminDashboard({
         <div className="grid sm:grid-cols-3 gap-6">
           <div className="p-4 bg-muted/10 border border-border rounded-2xl text-center">
             <p className="text-xs text-muted-foreground">Meetings This Month</p>
-            <h4 className="text-xl font-bold">184 Meetings</h4>
+            <h4 className="text-xl font-bold">{meetingsThisMonth > 0 ? `${meetingsThisMonth} Meeting${meetingsThisMonth !== 1 ? "s" : ""}` : "—"}</h4>
           </div>
           <div className="p-4 bg-muted/10 border border-border rounded-2xl text-center">
-            <p className="text-xs text-muted-foreground">Action items Generated</p>
-            <h4 className="text-xl font-bold">47 Items</h4>
+            <p className="text-xs text-muted-foreground">Avg Employee Engagement</p>
+            <h4 className={`text-xl font-bold ${parseFloat(avgEngagement) > 0 ? "" : "text-muted-foreground"}`}>
+              {parseFloat(avgEngagement) > 0 ? `${avgEngagement}%` : "—"}
+            </h4>
           </div>
           <div className="p-4 bg-muted/10 border border-border rounded-2xl text-center">
             <p className="text-xs text-muted-foreground">Participation Index</p>
-            <h4 className="text-xl font-bold text-emerald-400">82.4%</h4>
+            <h4 className={`text-xl font-bold ${participationIndex ? "text-emerald-400" : "text-muted-foreground"}`}>
+              {participationIndex ? `${participationIndex}%` : "—"}
+            </h4>
           </div>
         </div>
 
-        <div className="h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={attendanceTrendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="engagement" fill="#22D3EE" radius={[4, 4, 0, 0]} name="Engagement" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {monthlyData.length > 0 ? (
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="engagement" fill="#22D3EE" radius={[4, 4, 0, 0]} name="Avg Engagement %" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-56 flex items-center justify-center text-xs text-muted-foreground border border-border rounded-2xl">
+            <div className="text-center space-y-2">
+              <Activity className="w-8 h-8 mx-auto opacity-30" />
+              <p>No session data yet. End meetings to generate analytics.</p>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

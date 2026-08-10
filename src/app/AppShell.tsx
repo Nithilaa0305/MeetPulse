@@ -420,6 +420,7 @@ export function AppShell() {
               students={students}
               lecturers={lecturers}
               courses={courses}
+              sessions={sessions}
               liveSessionId={liveSessionId}
               activityFeed={activityFeed}
               studentSearch={studentSearch}
@@ -532,6 +533,7 @@ export function AppShell() {
             <BusinessAdminDashboard 
               activeTab={activeTab}
               employees={employees}
+              sessions={sessions}
               activityFeed={activityFeed}
               setShowEmployeeModal={setShowEmployeeModal}
             />
