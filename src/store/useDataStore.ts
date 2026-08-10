@@ -71,8 +71,8 @@ export const useDataStore = create<DataState>((set, get) => ({
             name: p.full_name || 'Unknown',
             courses: [],
             subjects: [],
-            attendance: 100,
-            rating: 5,
+            attendance: 0,
+            rating: 0,
             coachingReport: ''
           }));
           
