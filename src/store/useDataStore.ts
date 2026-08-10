@@ -88,27 +88,29 @@ export const useDataStore = create<DataState>((set, get) => ({
             report: ''
           }));
 
-        // Add pending invited students
-        invitations.filter(i => i.role === 'participant').forEach(inv => {
-          students.push({
-            id: inv.id,
-            name: inv.full_name || 'Pending User',
-            email: inv.email,
-            year: inv.year || '1st Year',
-            semester: inv.semester || 'Semester 1',
-            status: 'active',
-            course: inv.assigned_course || 'Unassigned',
-            department: inv.department || 'General',
-            lecturer: inv.assigned_lecturer || 'Unassigned',
-            emp_id: inv.emp_id || undefined,
-            isPending: true,
-            attendance: 0,
-            engagement: 0,
-            participation: 0,
-            questionsCount: 0,
-            report: 'Awaiting registration'
+        // Add pending invited students (only if not already registered)
+        invitations
+          .filter(i => i.role === 'participant' && !profiles.some(p => p.email === i.email))
+          .forEach(inv => {
+            students.push({
+              id: inv.id,
+              name: inv.full_name || 'Pending User',
+              email: inv.email,
+              year: inv.year || '1st Year',
+              semester: inv.semester || 'Semester 1',
+              status: 'active',
+              course: inv.assigned_course || 'Unassigned',
+              department: inv.department || 'General',
+              lecturer: inv.assigned_lecturer || 'Unassigned',
+              emp_id: inv.emp_id || undefined,
+              isPending: true,
+              attendance: 0,
+              engagement: 0,
+              participation: 0,
+              questionsCount: 0,
+              report: 'Awaiting registration'
+            });
           });
-        });
 
         const lecturers: Lecturer[] = profiles
           .filter(p => p.role === 'presenter')
@@ -130,24 +132,26 @@ export const useDataStore = create<DataState>((set, get) => ({
             };
           });
 
-        // Add pending invited lecturers
-        invitations.filter(i => i.role === 'presenter').forEach(inv => {
-          const courseList = inv.assigned_course && inv.assigned_course !== 'Unassigned'
-            ? inv.assigned_course.split(',').map((c: string) => c.trim()).filter(Boolean)
-            : [];
-          lecturers.push({
-            id: inv.id,
-            name: inv.full_name || 'Pending Lecturer',
-            department: inv.department || 'General',
-            emp_id: inv.emp_id || undefined,
-            isPending: true,
-            courses: courseList.length > 0 ? courseList : ['Unassigned'],
-            subjects: courseList.length > 0 ? courseList : ['Unassigned'],
-            attendance: 0,
-            rating: 0,
-            coachingReport: 'Awaiting registration'
+        // Add pending invited lecturers (only if not already registered)
+        invitations
+          .filter(i => i.role === 'presenter' && !profiles.some(p => p.email === i.email))
+          .forEach(inv => {
+            const courseList = inv.assigned_course && inv.assigned_course !== 'Unassigned'
+              ? inv.assigned_course.split(',').map((c: string) => c.trim()).filter(Boolean)
+              : [];
+            lecturers.push({
+              id: inv.id,
+              name: inv.full_name || 'Pending Lecturer',
+              department: inv.department || 'General',
+              emp_id: inv.emp_id || undefined,
+              isPending: true,
+              courses: courseList.length > 0 ? courseList : ['Unassigned'],
+              subjects: courseList.length > 0 ? courseList : ['Unassigned'],
+              attendance: 0,
+              rating: 0,
+              coachingReport: 'Awaiting registration'
+            });
           });
-        });
           
         set({ students, lecturers });
       }
