@@ -427,16 +427,179 @@ export function EducationAdminDashboard({
   }
 
   if (activeTab === "analytics") {
+    // 1. Compute dynamic Department Stats
+    const deptMap: Record<string, { totalAtt: number; totalEng: number; count: number }> = {};
+    students.forEach(s => {
+      const deptName = s.department && s.department !== "Unassigned" ? s.department : "Unassigned";
+      if (!deptMap[deptName]) {
+        deptMap[deptName] = { totalAtt: 0, totalEng: 0, count: 0 };
+      }
+      deptMap[deptName].totalAtt += s.attendance || 0;
+      deptMap[deptName].totalEng += s.engagement || 0;
+      deptMap[deptName].count += 1;
+    });
+
+    const calculatedDeptData = Object.entries(deptMap).map(([name, data]) => ({
+      name,
+      attendance: data.count > 0 ? Math.round(data.totalAtt / data.count) : 0,
+      engagement: data.count > 0 ? Math.round(data.totalEng / data.count) : 0,
+      students: data.count
+    }));
+
+    // 2. Compute dynamic Batch Stats (Year + Semester)
+    const batchMap: Record<string, { totalAtt: number; totalEng: number; count: number }> = {};
+    students.forEach(s => {
+      const batchKey = `${s.year || "1st Year"} - ${s.semester || "Semester 1"}`;
+      if (!batchMap[batchKey]) {
+        batchMap[batchKey] = { totalAtt: 0, totalEng: 0, count: 0 };
+      }
+      batchMap[batchKey].totalAtt += s.attendance || 0;
+      batchMap[batchKey].totalEng += s.engagement || 0;
+      batchMap[batchKey].count += 1;
+    });
+
+    const calculatedBatchData = Object.entries(batchMap).map(([batch, data]) => ({
+      batch,
+      attendance: data.count > 0 ? Math.round(data.totalAtt / data.count) : 0,
+      engagement: data.count > 0 ? Math.round(data.totalEng / data.count) : 0,
+      students: data.count
+    })).sort((a, b) => a.batch.localeCompare(b.batch));
+
+    // 3. Lecturer Stats for Chart
+    const lecturerChartData = lecturers.map(l => ({
+      name: l.name,
+      rating: l.rating || 0,
+      attendance: l.attendance || 0
+    }));
+
     return (
       <div className="space-y-6">
-        <div className="bg-card border border-border rounded-3xl p-12 text-center space-y-4">
-          <div className="w-16 h-16 bg-muted/20 rounded-full flex items-center justify-center mx-auto text-muted-foreground">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+        <div>
+          <h3 className="font-bold text-sm text-foreground">Institution Analytics</h3>
+          <p className="text-xs text-muted-foreground">Comprehensive insights across departments, lecturers, batches, and overall engagement trends.</p>
+        </div>
+
+        {/* Top Overview Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-1">
+            <span className="text-muted-foreground block text-[10px] uppercase font-bold">Total Departments</span>
+            <span className="text-xl font-bold text-indigo-400">{calculatedDeptData.filter(d => d.name !== "Unassigned").length}</span>
           </div>
-          <h3 className="font-bold text-foreground">Analytics Unavailable</h3>
-          <p className="text-muted-foreground text-xs max-w-md mx-auto">
-            Not enough data has been collected yet. As students attend sessions and interact with the platform, comprehensive analytics will appear here.
-          </p>
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-1">
+            <span className="text-muted-foreground block text-[10px] uppercase font-bold">Global Avg Attendance</span>
+            <span className="text-xl font-bold text-emerald-400">
+              {students.length > 0 ? `${Math.round(students.reduce((acc, s) => acc + (s.attendance || 0), 0) / students.length)}%` : "-"}
+            </span>
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-1">
+            <span className="text-muted-foreground block text-[10px] uppercase font-bold">Global Avg Engagement</span>
+            <span className="text-xl font-bold text-pink-400">
+              {students.length > 0 ? `${Math.round(students.reduce((acc, s) => acc + (s.engagement || 0), 0) / students.length)}%` : "-"}
+            </span>
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-1">
+            <span className="text-muted-foreground block text-[10px] uppercase font-bold">Active Students</span>
+            <span className="text-xl font-bold text-primary">{students.length}</span>
+          </div>
+        </div>
+
+        {/* Trend Section (Similar to presenter dashboard) */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="bg-card border border-border rounded-3xl p-5 space-y-3">
+            <div className="flex justify-between items-center">
+              <h4 className="text-xs font-bold text-foreground">Attendance & Engagement Trends</h4>
+              <span className="text-[10px] text-muted-foreground">Monthly overview</span>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={attendanceTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="month" tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                  <YAxis domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }} />
+                  <Line type="monotone" dataKey="attendance" name="Attendance (%)" stroke="#10b981" strokeWidth={2} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="engagement" name="Engagement (%)" stroke="#ec4899" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Department Breakdown */}
+          <div className="bg-card border border-border rounded-3xl p-5 space-y-3">
+            <div className="flex justify-between items-center">
+              <h4 className="text-xs font-bold text-foreground">Department Performance</h4>
+              <span className="text-[10px] text-muted-foreground">Avg scores by department</span>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={calculatedDeptData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                  <YAxis domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }} />
+                  <Bar dataKey="attendance" name="Attendance" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="engagement" name="Engagement" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Lecturer Performance */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="bg-card border border-border rounded-3xl p-5 space-y-3">
+            <div className="flex justify-between items-center">
+              <h4 className="text-xs font-bold text-foreground">Lecturer Ratings & Engagement</h4>
+              <span className="text-[10px] text-muted-foreground">Avg rating (out of 5.0)</span>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={lecturerChartData} layout="vertical" margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis type="number" domain={[0, 5]} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: '#94a3b8', fontSize: 10 }} width={80} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }} />
+                  <Bar dataKey="rating" name="Rating" fill="#fbbf24" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Student Batchwise Analytics */}
+          <div className="bg-card border border-border rounded-3xl p-5 space-y-3">
+            <div className="flex justify-between items-center">
+              <h4 className="text-xs font-bold text-foreground">Student Batch Performance</h4>
+              <span className="text-[10px] text-muted-foreground">Year / Semester comparison</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground">
+                    <th className="py-2.5 font-semibold">Batch</th>
+                    <th className="py-2.5 font-semibold text-center">Students</th>
+                    <th className="py-2.5 font-semibold text-center">Avg Attendance</th>
+                    <th className="py-2.5 font-semibold text-center">Avg Engagement</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/45">
+                  {calculatedBatchData.length > 0 ? (
+                    calculatedBatchData.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-muted/5">
+                        <td className="py-3 font-bold text-foreground">{row.batch}</td>
+                        <td className="py-3 text-center">{row.students}</td>
+                        <td className="py-3 text-center text-emerald-400 font-semibold">{row.attendance}%</td>
+                        <td className="py-3 text-center text-pink-400 font-semibold">{row.engagement}%</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="py-4 text-center text-muted-foreground">No batch data available.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     );
