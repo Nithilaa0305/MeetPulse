@@ -406,7 +406,7 @@ export function AppShell() {
             />
           )}
 
-          {activeTab === "analytics" && !(org === "education" && role === "presenter") && (
+          {activeTab === "analytics" && !(org === "education" && role === "presenter") && !(org === "education" && role === "admin") && (
             <AnalyticsDashboard role={role} org={org} />
           )}
 
@@ -414,7 +414,7 @@ export function AppShell() {
             <SuperAdminDashboard activeTab={activeTab} />
           )}
 
-          {org === "education" && role === "admin" && activeTab !== "settings" && activeTab !== "analytics" && (
+          {org === "education" && role === "admin" && activeTab !== "settings" && (
             <EducationAdminDashboard 
               activeTab={activeTab}
               students={students}
