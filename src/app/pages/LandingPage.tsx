@@ -2,7 +2,8 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import {
   Brain, Activity, Target, Mic, Menu, X, Layers,
-  BarChart2, ArrowRight, Sparkles, Radio, Check, ChevronDown, Play
+  BarChart2, ArrowRight, Sparkles, Radio, Check, ChevronDown, Play,
+  GraduationCap, Briefcase, Building2
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, Tooltip } from "recharts";
 import { GlowOrbs } from "../components/common/CommonUI";
@@ -134,7 +135,15 @@ export function LandingPage({ onLogin, onSignup }: { onLogin: () => void; onSign
               <span className="text-[17px] font-bold tracking-tight text-white">MeetPulse</span>
             </div>
             <nav className="hidden md:flex items-center gap-1">
-              {navLinks.map(l => <button key={l} className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-2 rounded-lg hover:bg-white/5">{l}</button>)}
+              {navLinks.map(l => (
+                <button key={l} onClick={() => {
+                  const target = document.getElementById(l.toLowerCase());
+                  if (target) target.scrollIntoView({ behavior: 'smooth' });
+                  else alert(`Navigating to ${l}...`);
+                }} className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-2 rounded-lg hover:bg-white/5">
+                  {l}
+                </button>
+              ))}
             </nav>
             <div className="hidden md:flex items-center gap-2">
               <button onClick={onLogin} className="text-sm text-slate-400 hover:text-white transition-colors px-4 py-2 rounded-lg hover:bg-white/5">Log in</button>
@@ -146,7 +155,16 @@ export function LandingPage({ onLogin, onSignup }: { onLogin: () => void; onSign
           </div>
           {menuOpen && (
             <div className="md:hidden mt-2 backdrop-blur-2xl bg-[#0F172A]/98 border border-white/10 rounded-2xl p-4 space-y-1 shadow-xl">
-              {navLinks.map(l => <button key={l} className="w-full text-left text-sm text-slate-300 hover:text-white px-3 py-2.5 rounded-lg hover:bg-white/5">{l}</button>)}
+              {navLinks.map(l => (
+                <button key={l} onClick={() => {
+                  setMenuOpen(false);
+                  const target = document.getElementById(l.toLowerCase());
+                  if (target) target.scrollIntoView({ behavior: 'smooth' });
+                  else alert(`Navigating to ${l}...`);
+                }} className="w-full text-left text-sm text-slate-300 hover:text-white px-3 py-2.5 rounded-lg hover:bg-white/5">
+                  {l}
+                </button>
+              ))}
               <div className="pt-3 border-t border-white/10 space-y-2">
                 <button onClick={onLogin} className="w-full text-left text-sm text-slate-400 px-3 py-2.5">Log in</button>
                 <button onClick={onSignup} className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-5 py-3 rounded-xl font-semibold text-sm">Get Started Free</button>
@@ -200,20 +218,10 @@ export function LandingPage({ onLogin, onSignup }: { onLogin: () => void; onSign
         <div className="absolute bottom-0 inset-x-0 h-32 bg-gradient-to-t from-[#020617] to-transparent pointer-events-none" />
       </section>
 
-      {/* Trusted by */}
-      <div className="py-12 border-y border-white/6">
-        <div className="mx-auto max-w-7xl px-4">
-          <p className="text-center text-xs font-semibold text-slate-600 uppercase tracking-widest mb-8">Trusted by leading universities and enterprises</p>
-          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12">
-            {["Stanford", "MIT", "Stripe", "Deloitte", "Notion", "Figma", "Vercel", "Salesforce"].map(l => (
-              <div key={l} className="text-slate-600 font-bold text-lg tracking-tight hover:text-slate-400 transition-colors cursor-default">{l}</div>
-            ))}
-          </div>
-        </div>
-      </div>
+
 
       {/* Features */}
-      <section className="py-24 px-4">
+      <section id="features" className="py-24 px-4">
         <div className="mx-auto max-w-7xl">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="text-center mb-14">
             <p className="text-xs font-semibold text-indigo-400 uppercase tracking-widest mb-4">Platform Features</p>
@@ -239,8 +247,46 @@ export function LandingPage({ onLogin, onSignup }: { onLogin: () => void; onSign
         </div>
       </section>
 
+      {/* Solutions */}
+      <section id="solutions" className="py-24 px-4 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-indigo-950/10 to-transparent pointer-events-none" />
+        <div className="mx-auto max-w-7xl relative">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="text-center mb-16">
+            <p className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-4">Tailored Solutions</p>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-4">Built for every environment</h2>
+            <p className="text-slate-400 max-w-xl mx-auto text-lg">Whether you are teaching a lecture hall of 500 or running a board meeting of 5.</p>
+          </motion.div>
+          
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { title: "Education", icon: GraduationCap, desc: "For universities and schools. Engage students with live quizzes, track smart attendance, and integrate directly with Canvas and Blackboard.", grad: "from-emerald-500/20 to-teal-500/5", border: "border-emerald-500/20 hover:border-emerald-500/50", iconBg: "bg-emerald-500/10", iconColor: "text-emerald-400", linkColor: "text-emerald-400" },
+              { title: "Business", icon: Briefcase, desc: "For teams and agencies. Keep remote teams aligned with AI summaries, action item extraction, and interactive all-hands meetings.", grad: "from-blue-500/20 to-cyan-500/5", border: "border-blue-500/20 hover:border-blue-500/50", iconBg: "bg-blue-500/10", iconColor: "text-blue-400", linkColor: "text-blue-400" },
+              { title: "Enterprise", icon: Building2, desc: "For large organizations. SOC-2 compliance, SSO integration, dedicated account management, and cross-department analytics.", grad: "from-purple-500/20 to-indigo-500/5", border: "border-purple-500/20 hover:border-purple-500/50", iconBg: "bg-purple-500/10", iconColor: "text-purple-400", linkColor: "text-purple-400" }
+            ].map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <motion.div key={s.title} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
+                  className={`group relative overflow-hidden bg-[#111827]/80 backdrop-blur-sm border ${s.border} rounded-[2rem] p-8 hover:-translate-y-2 transition-all duration-300 shadow-xl`}>
+                  <div className={`absolute inset-0 bg-gradient-to-br ${s.grad} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                  <div className="relative z-10">
+                    <div className={`w-14 h-14 rounded-2xl ${s.iconBg} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
+                      <Icon className={`w-7 h-7 ${s.iconColor}`} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-3">{s.title}</h3>
+                    <p className="text-slate-400 text-[15px] leading-relaxed mb-8">{s.desc}</p>
+                    <button onClick={() => alert(`Navigating to ${s.title} solution page...`)} className={`text-sm font-semibold ${s.linkColor} flex items-center gap-1 group-hover:gap-2 transition-all`}>
+                      Explore {s.title} <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* FAQ */}
-      <section className="py-24 px-4">
+      <section id="faq" className="py-24 px-4">
         <div className="mx-auto max-w-3xl">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="text-center mb-14">
             <p className="text-xs font-semibold text-purple-400 uppercase tracking-widest mb-4">FAQ</p>
@@ -262,16 +308,32 @@ export function LandingPage({ onLogin, onSignup }: { onLogin: () => void; onSign
       </section>
 
       {/* CTA */}
-      <section className="py-20 px-4">
-        <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="mx-auto max-w-4xl">
-          <div className="relative bg-gradient-to-br from-indigo-950/80 via-purple-950/60 to-[#111827] border border-indigo-500/20 rounded-3xl p-16 text-center overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/10 to-purple-600/5 pointer-events-none" />
-            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent" />
-            <div className="relative">
-              <h2 className="text-5xl font-extrabold text-white tracking-tight mb-6">Ready to run smarter meetings?</h2>
-              <p className="text-slate-400 text-lg mb-10 max-w-xl mx-auto">Join 500+ organizations already using MeetPulse to engage audiences, extract insights, and never lose another action item.</p>
-              <button onClick={onSignup} className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-8 py-4 rounded-xl font-bold text-[15px] hover:opacity-90 transition-opacity shadow-xl shadow-indigo-500/30 active:scale-95">
-                Get Started Free <ArrowRight className="w-4 h-4" />
+      <section className="py-24 px-4 relative overflow-hidden">
+        <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="mx-auto max-w-5xl relative group">
+          <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2.5rem] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+          <div className="relative bg-[#0F172A] border border-white/10 rounded-[2.5rem] p-12 md:p-20 text-center overflow-hidden shadow-2xl">
+            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
+            <div className="absolute -top-48 -right-48 w-96 h-96 bg-indigo-500 rounded-full mix-blend-screen filter blur-[128px] opacity-40"></div>
+            <div className="absolute -bottom-48 -left-48 w-96 h-96 bg-purple-500 rounded-full mix-blend-screen filter blur-[128px] opacity-40"></div>
+            
+            <div className="relative z-10 flex flex-col items-center">
+              <div className="flex -space-x-3 mb-8">
+                {["https://i.pravatar.cc/100?img=33", "https://i.pravatar.cc/100?img=47", "https://i.pravatar.cc/100?img=12", "https://i.pravatar.cc/100?img=32"].map((src, i) => (
+                  <img key={i} src={src} alt="User avatar" className="w-10 h-10 rounded-full border-2 border-[#0F172A] shadow-sm relative z-10" />
+                ))}
+                <div className="w-10 h-10 rounded-full border-2 border-[#0F172A] bg-white/5 flex items-center justify-center text-[10px] font-bold text-white relative z-20 backdrop-blur-md">
+                  +500
+                </div>
+              </div>
+              <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white tracking-tight mb-6">
+                Ready to run <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">smarter meetings?</span>
+              </h2>
+              <p className="text-slate-400 text-lg md:text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
+                Join 500+ organizations already using MeetPulse to engage audiences, extract insights, and never lose another action item.
+              </p>
+              <button onClick={onSignup} className="group relative inline-flex items-center gap-2 bg-white text-[#0F172A] px-8 py-4 rounded-full font-bold text-[16px] hover:scale-105 transition-all shadow-[0_0_40px_rgba(255,255,255,0.2)] hover:shadow-[0_0_60px_rgba(255,255,255,0.4)] active:scale-95">
+                <span className="relative z-10 flex items-center gap-2">Get Started Free <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></span>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-indigo-100 to-purple-100 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </button>
             </div>
           </div>
@@ -298,7 +360,18 @@ export function LandingPage({ onLogin, onSignup }: { onLogin: () => void; onSign
               ].map(col => (
                 <div key={col.title}>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">{col.title}</p>
-                  <ul className="space-y-2.5">{col.links.map(l => <li key={l}><button className="text-sm text-slate-500 hover:text-white transition-colors">{l}</button></li>)}</ul>
+                  <ul className="space-y-2.5">{col.links.map(l => (
+                    <li key={l}>
+                      <button onClick={() => {
+                        const targetId = l.toLowerCase();
+                        const target = document.getElementById(targetId);
+                        if (target) target.scrollIntoView({ behavior: 'smooth' });
+                        else alert(`Navigating to ${l} page...`);
+                      }} className="text-sm text-slate-500 hover:text-white transition-colors">
+                        {l}
+                      </button>
+                    </li>
+                  ))}</ul>
                 </div>
               ))}
             </div>
@@ -306,7 +379,11 @@ export function LandingPage({ onLogin, onSignup }: { onLogin: () => void; onSign
           <div className="pt-8 border-t border-white/6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-xs text-slate-600">© 2025 MeetPulse, Inc. All rights reserved.</p>
             <div className="flex items-center gap-5">
-              {["Privacy", "Terms", "Security"].map(l => <button key={l} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">{l}</button>)}
+              {["Privacy", "Terms", "Security"].map(l => (
+                <button key={l} onClick={() => alert(`Opening ${l} policy...`)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
+                  {l}
+                </button>
+              ))}
             </div>
           </div>
         </div>
