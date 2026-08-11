@@ -150,6 +150,7 @@ export function LecturerPresenterDashboard({
   const user = useAuthStore(state => state.user);
   const allCourses = useDataStore(state => state.courses);
   const myCourses = allCourses.filter(c => c.lecturer_id === user?.id || c.lecturer === user?.name);
+  const mySessions = sessions.filter(s => myCourses.some(c => c.name === s.course));
   const [slideFile, setSlideFile] = useState<string>("");
   const [slideTitlesText, setSlideTitlesText] = useState<string>("");
   const [uploadedMaterials, setUploadedMaterials] = useState<{ name: string; size: string; type: string; url?: string; localUrl?: string; fileObject?: File; textContents?: string; slidesText?: string[][] }[]>([]);
@@ -354,39 +355,43 @@ export function LecturerPresenterDashboard({
         <div className="bg-card border border-border rounded-3xl p-6 space-y-4">
           <h3 className="font-bold text-sm">Schedule & Presentations</h3>
           <div className="space-y-3">
-            {sessions.map(s => (
-              <div key={s.id} className="flex justify-between items-center text-xs p-4 bg-background border border-border rounded-xl">
-                <div>
-                  <p className="font-bold">{s.name}</p>
-                  <p className="text-muted-foreground text-[10px]">{s.date} at {s.time} • {s.platform}</p>
+            {mySessions.length > 0 ? (
+              mySessions.map(s => (
+                <div key={s.id} className="flex justify-between items-center text-xs p-4 bg-background border border-border rounded-xl">
+                  <div>
+                    <p className="font-bold">{s.name}</p>
+                    <p className="text-muted-foreground text-[10px]">{s.date} at {s.time} • {s.platform}</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => {
+                        setLiveSessionId(s.id);
+                        setAudienceCount(30);
+                        setActiveTab("live");
+                      }}
+                      className="text-primary font-bold hover:underline cursor-pointer flex items-center gap-1">
+                      <Play className="w-3 h-3" /> Launch
+                    </button>
+                    <button 
+                      onClick={() => handleStartEdit(s)}
+                      className="text-slate-400 hover:text-indigo-400 font-medium cursor-pointer flex items-center gap-1"
+                      title="Edit Session"
+                    >
+                      <Edit2 className="w-3 h-3" /> Edit
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteSession(s.id)}
+                      className="text-slate-400 hover:text-red-400 font-medium cursor-pointer flex items-center gap-1"
+                      title="Delete Session"
+                    >
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => {
-                      setLiveSessionId(s.id);
-                      setAudienceCount(30);
-                      setActiveTab("live");
-                    }}
-                    className="text-primary font-bold hover:underline cursor-pointer flex items-center gap-1">
-                    <Play className="w-3 h-3" /> Launch
-                  </button>
-                  <button 
-                    onClick={() => handleStartEdit(s)}
-                    className="text-slate-400 hover:text-indigo-400 font-medium cursor-pointer flex items-center gap-1"
-                    title="Edit Session"
-                  >
-                    <Edit2 className="w-3 h-3" /> Edit
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteSession(s.id)}
-                    className="text-slate-400 hover:text-red-400 font-medium cursor-pointer flex items-center gap-1"
-                    title="Delete Session"
-                  >
-                    <Trash2 className="w-3 h-3" /> Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground italic text-center py-4">No presentations scheduled for your assigned courses.</p>
+            )}
           </div>
         </div>
       </div>

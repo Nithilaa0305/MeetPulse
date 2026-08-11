@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AuthMode } from "../types";
 import { GlowOrbs } from "../components/common/CommonUI";
 import { supabase } from "../../lib/supabase";
+import { useAuthStore } from "../../store/useAuthStore";
 
 export function AuthPage({ 
   mode, 
@@ -22,6 +23,8 @@ export function AuthPage({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const updateUser = useAuthStore(state => state.updateUser);
 
   const handleSubmit = async () => {
     setError(null);
@@ -144,14 +147,6 @@ export function AuthPage({
             className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg hover:opacity-90 active:scale-95 transition-all cursor-pointer disabled:opacity-50">
             {loading ? "Processing..." : mode === "register" ? "Create Account & Continue" : "Log In & Continue"}
           </button>
-
-          {onDirectApp && (
-            <button 
-              onClick={onDirectApp} 
-              className="w-full bg-white/5 border border-border hover:bg-white/10 text-foreground py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer">
-              Direct Dashboard Access (Skip Setup)
-            </button>
-          )}
         </div>
         <p className="text-center text-xs text-muted-foreground mt-4">
           {mode === "register" ? "Already have an account? " : "No account? "}

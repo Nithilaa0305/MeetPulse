@@ -171,22 +171,16 @@ export function EducationAdminDashboard({
         </div>
 
         {/* Student Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto bg-[#111827]/40 border border-border/80 rounded-2xl">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-border text-muted-foreground font-bold">
-                <th className="pb-3">Name</th>
-                <th className="pb-3">Email</th>
-                <th className="pb-3">Department</th>
-                <th className="pb-3">Year</th>
-                <th className="pb-3">Semester</th>
-                <th className="pb-3">Course</th>
-                <th className="pb-3">Lecturer</th>
-                <th className="pb-3">Smart Att %</th>
-                <th className="pb-3">Engagement %</th>
-                <th className="pb-3">Questions</th>
-                <th className="pb-3">Status</th>
-                <th className="pb-3 text-right">Actions</th>
+              <tr className="border-b border-border/80 text-muted-foreground font-bold bg-[#111827]/60">
+                <th className="py-4 px-4 font-bold uppercase tracking-wider text-[10px]">Student Info</th>
+                <th className="py-4 px-4 font-bold uppercase tracking-wider text-[10px]">Department & Batch</th>
+                <th className="py-4 px-4 font-bold uppercase tracking-wider text-[10px]">Assigned Class</th>
+                <th className="py-4 px-4 font-bold uppercase tracking-wider text-[10px]">Performance</th>
+                <th className="py-4 px-4 font-bold uppercase tracking-wider text-[10px]">Status</th>
+                <th className="py-4 px-4 font-bold uppercase tracking-wider text-[10px] text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40">
@@ -194,25 +188,67 @@ export function EducationAdminDashboard({
                 .filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase()))
                 .filter(s => studentFilter === "all" || s.course === studentFilter)
                 .map((student) => (
-                  <tr key={student.id} className="group hover:bg-muted/10">
-                    <td className="py-3 font-semibold">
-                      <div className="flex items-center gap-2">
-                        {student.name}
-                        {student.isPending && <span className="bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">Pending</span>}
+                  <tr key={student.id} className="group hover:bg-white/5 transition-colors">
+                    {/* Name & Email */}
+                    <td className="py-4 px-4 align-middle">
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-foreground text-sm">{student.name}</span>
+                          {student.isPending && (
+                            <span className="bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full text-[9px] uppercase font-bold border border-amber-500/20">
+                              Pending
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-muted-foreground mt-0.5">{student.email}</span>
+                        {student.emp_id && <span className="text-[9px] font-mono text-muted-foreground mt-0.5">{student.emp_id}</span>}
                       </div>
-                      {student.emp_id && <div className="text-[10px] text-muted-foreground mt-0.5">{student.emp_id}</div>}
                     </td>
-                    <td className="py-3 text-muted-foreground">{student.email}</td>
-                    <td className="py-3 text-muted-foreground">{student.department || 'General'}</td>
-                    <td className="py-3 text-muted-foreground">{student.year || '1st Year'}</td>
-                    <td className="py-3 text-muted-foreground">{student.semester || 'Semester 1'}</td>
-                    <td className="py-3">{student.course}</td>
-                    <td className="py-3">{student.lecturer}</td>
-                    <td className="py-3 font-mono font-bold text-indigo-400">--</td>
-                    <td className="py-3 font-mono">--</td>
-                    <td className="py-3 font-mono">--</td>
-                    <td className="py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                    
+                    {/* Department & Batch */}
+                    <td className="py-4 px-4 align-middle">
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-foreground font-medium">{student.department || 'General'}</span>
+                        <div className="flex gap-1.5">
+                          <span className="bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded text-[9px] font-semibold border border-indigo-500/20">
+                            {student.year || '1st Year'}
+                          </span>
+                          <span className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded text-[9px] font-semibold border border-purple-500/20">
+                            {student.semester || 'Semester 1'}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Assigned Course & Lecturer */}
+                    <td className="py-4 px-4 align-middle">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-foreground">{student.course}</span>
+                        <span className="text-[11px] text-muted-foreground mt-1">Lecturer: {student.lecturer}</span>
+                      </div>
+                    </td>
+
+                    {/* Performance Metrics */}
+                    <td className="py-4 px-4 align-middle font-mono">
+                      <div className="flex gap-4">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] text-muted-foreground uppercase font-bold">Att</span>
+                          <span className="text-xs font-bold text-indigo-400">--</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] text-muted-foreground uppercase font-bold">Eng</span>
+                          <span className="text-xs font-bold text-pink-400">--</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] text-muted-foreground uppercase font-bold">Qst</span>
+                          <span className="text-xs font-bold text-cyan-400">--</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Status */}
+                    <td className="py-4 px-4 align-middle">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
                         student.status === "active" 
                           ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
                           : "bg-rose-500/10 text-rose-400 border-rose-500/20"
@@ -220,11 +256,36 @@ export function EducationAdminDashboard({
                         {student.status}
                       </span>
                     </td>
-                    <td className="py-3 text-right space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => setSelectedStudentDetail(student)} className="text-primary hover:underline font-bold cursor-pointer">Profile</button>
-                      <button onClick={() => onEditStudent && onEditStudent(student)} className="text-accent hover:underline font-bold cursor-pointer">Edit</button>
-                      <button onClick={() => handleSuspendStudent(student.id)} className="text-amber-400 hover:underline font-bold cursor-pointer">Suspend</button>
-                      <button onClick={() => handleDeleteStudent(student.id)} className="text-rose-400 hover:underline font-bold cursor-pointer"><Trash2 className="w-3.5 h-3.5 inline" /></button>
+
+                    {/* Actions */}
+                    <td className="py-4 px-4 align-middle text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button 
+                          onClick={() => setSelectedStudentDetail(student)} 
+                          className="bg-primary/10 hover:bg-primary/20 text-primary px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                        >
+                          Profile
+                        </button>
+                        <button 
+                          onClick={() => onEditStudent && onEditStudent(student)} 
+                          className="bg-white/5 hover:bg-white/10 text-foreground border border-border px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => handleSuspendStudent(student.id)} 
+                          className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                        >
+                          Suspend
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteStudent(student.id)} 
+                          className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 p-1.5 rounded-lg transition-all cursor-pointer"
+                          title="Delete student"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -236,6 +297,37 @@ export function EducationAdminDashboard({
   }
 
   if (activeTab === "lecturers") {
+    const uniqueLecturers: Lecturer[] = [];
+    lecturers.forEach(lec => {
+      const existing = uniqueLecturers.find(l => l.name === lec.name || (l.emp_id && l.emp_id === lec.emp_id));
+      if (existing) {
+        lec.courses.forEach(c => {
+          if (c && c !== 'Unassigned' && !existing.courses.includes(c)) {
+            if (existing.courses.includes('Unassigned')) {
+              existing.courses = [c];
+            } else {
+              existing.courses.push(c);
+            }
+          }
+        });
+        lec.subjects.forEach(s => {
+          if (s && s !== 'Unassigned' && !existing.subjects.includes(s)) {
+            if (existing.subjects.includes('Unassigned')) {
+              existing.subjects = [s];
+            } else {
+              existing.subjects.push(s);
+            }
+          }
+        });
+      } else {
+        uniqueLecturers.push({
+          ...lec,
+          courses: [...lec.courses],
+          subjects: [...lec.subjects]
+        });
+      }
+    });
+
     return (
       <div className="space-y-6">
         <div className="bg-card border border-border rounded-3xl p-6 space-y-4">
@@ -262,7 +354,7 @@ export function EducationAdminDashboard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {lecturers.map(lec => (
+                {uniqueLecturers.map(lec => (
                   <tr key={lec.id} className="group hover:bg-muted/10">
                     <td className="py-3 font-semibold">
                       <div className="flex items-center gap-2">

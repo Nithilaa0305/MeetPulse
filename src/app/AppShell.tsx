@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Sparkles, Home, Building, Award, FileText, Users, BookOpen, BarChart2,
-  Plus, Radio, QrCode, Brain, CheckSquare, Settings, LogOut, X, ShieldAlert, Search
+  Plus, Radio, QrCode, Brain, CheckSquare, Settings, LogOut, X, ShieldAlert, Search, Menu
 } from "lucide-react";
 import { OrgType, Role, Student, Lecturer, Course, Session, LiveQuestion, LivePoll, Employee } from "./types";
 import { socket } from "../lib/socket";
@@ -25,6 +25,7 @@ import { useEffect } from "react";
 import { supabase } from "../lib/supabase";
 
 import { useSocketSync } from "../hooks/useSocketSync";
+import { useIsMobile } from "./components/ui/use-mobile";
 
 export function AppShell() {
   useSocketSync();
@@ -97,7 +98,8 @@ export function AppShell() {
   const calculateSmartAttendanceScore = (s: Student) => 100;
   const handleNextSlide = () => setCurrentSlide(currentSlide + 1);
   const handlePrevSlide = () => setCurrentSlide(Math.max(0, currentSlide - 1));
-  const isMobile = false;
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const [activeTab, setActiveTab] = useState("overview");
   const [presAnalyticsTab, setPresAnalyticsTab] = useState("engagement");
@@ -245,7 +247,7 @@ export function AppShell() {
   return (
     <div className="flex h-screen max-h-screen w-full bg-background overflow-hidden relative text-foreground">
       {/* SIDEBAR NAVIGATION */}
-      {!isMobile && (
+      {!isMobile && sidebarOpen && (
         <aside className="w-64 h-full bg-sidebar border-r border-sidebar-border shrink-0 flex flex-col justify-between py-6 px-4 overflow-y-auto">
           <div className="space-y-6 flex-1 flex flex-col">
             <div className="flex items-center gap-2.5 px-3 shrink-0">
@@ -346,6 +348,15 @@ export function AppShell() {
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="h-14 border-b border-border bg-card/50 flex items-center justify-between px-6 z-20 backdrop-blur-md">
           <div className="flex items-center gap-3">
+            {!isMobile && (
+              <button 
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors cursor-pointer mr-2"
+                title="Toggle Sidebar"
+              >
+                <Menu className="w-4 h-4" />
+              </button>
+            )}
             {isMobile && (
               <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
                 <Sparkles className="w-3.5 h-3.5 text-white" />

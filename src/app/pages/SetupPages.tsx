@@ -132,6 +132,7 @@ export function DetailsPage({ org, role, onNext }: { org: OrgType; role: Role; o
               className="w-full bg-input rounded-xl border border-border px-4 py-3 text-sm focus:border-primary/50 outline-none" 
             />
           </div>
+
           <button 
             onClick={handleSubmit} 
             disabled={loading}

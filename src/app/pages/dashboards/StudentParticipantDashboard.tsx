@@ -63,6 +63,38 @@ export function StudentParticipantDashboard({
   const user = useAuthStore((state) => state.user);
   const students = useDataStore((state) => state.students);
   const courses = useDataStore((state) => state.courses);
+  const transcript = useMeetingStore((state) => state.transcript);
+
+  const [aiSummary, setAiSummary] = React.useState<string[]>([]);
+  const [isGeneratingSummary, setIsGeneratingSummary] = React.useState(false);
+  const [summaryError, setSummaryError] = React.useState<string | null>(null);
+
+  const fetchSummary = async () => {
+    const transcriptText = transcript.map(t => `${t.speaker}: ${t.text}`).join("\n");
+    if (!transcriptText.trim()) {
+      setSummaryError("No transcript content available yet. Please wait for the lecture to begin and record some transcription.");
+      return;
+    }
+    
+    setIsGeneratingSummary(true);
+    setSummaryError(null);
+    try {
+      const { generateLectureSummary } = await import("../../utils/llmService");
+      const result = await generateLectureSummary(currentSession?.name || "Lecture", transcriptText);
+      setAiSummary(result);
+    } catch (e: any) {
+      console.error(e);
+      setSummaryError(e.message || "Failed to generate AI summary.");
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (activeTab === "learning" && transcript.length > 0 && aiSummary.length === 0 && !isGeneratingSummary) {
+      fetchSummary();
+    }
+  }, [activeTab]);
 
   const canJoinSession = (session: Session) => {
     if (!user) return false;
@@ -151,14 +183,25 @@ export function StudentParticipantDashboard({
           <div className="bg-card border border-border rounded-3xl p-5">
             <h4 className="font-bold text-xs text-muted-foreground uppercase tracking-wider mb-3">Academic Learning Progress</h4>
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span>CS401 Deep Learning</span>
-                <span className="font-bold">68%</span>
-              </div>
-              <div className="flex justify-between">
-                <span>CS301 Operating Systems</span>
-                <span className="font-bold">82%</span>
-              </div>
+              {(() => {
+                const student = students.find(s => s.id === user?.id);
+                const myCourses = student
+                  ? courses.filter(c => c.year === student.year && c.semester === student.semester)
+                  : [];
+                if (myCourses.length > 0) {
+                  return myCourses.map(c => (
+                    <div key={c.id} className="flex justify-between">
+                      <span>{c.code ? `${c.code} ` : ""}{c.name}</span>
+                      <span className="font-bold">{c.engagement || 80}%</span>
+                    </div>
+                  ));
+                }
+                return (
+                  <p className="text-[10px] text-muted-foreground italic">
+                    No courses registered for {student?.year || "your year"} and {student?.semester || "semester"}.
+                  </p>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -702,14 +745,50 @@ export function StudentParticipantDashboard({
 
   if (activeTab === "learning") {
     return (
-      <div className="bg-card border border-border rounded-3xl p-6 space-y-4">
-        <h3 className="font-bold text-sm">AI Learning Summary Hub</h3>
-        <div className="p-4 bg-muted/10 border border-border rounded-2xl space-y-2">
-          <p className="font-bold text-xs text-indigo-400">CS401 Deep Learning - Neural Networks Fundamentals</p>
-          <p className="text-xs text-foreground leading-relaxed">
-            Focus of today's lecture was error optimization via Gradient Descent. The professor outlined the chain rule formulation where weights are adjusted proportional to the derivative of the loss function.
-          </p>
+      <div className="bg-card border border-border rounded-3xl p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-bold text-sm">AI Learning Summary Hub</h3>
+            <p className="text-xs text-muted-foreground">Textbook-style lecture notes generated from real-time classroom discussions.</p>
+          </div>
+          <button 
+            onClick={fetchSummary}
+            disabled={isGeneratingSummary || transcript.length === 0}
+            className="bg-primary text-white hover:opacity-90 disabled:opacity-50 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
+          >
+            {isGeneratingSummary ? "Generating..." : "Generate / Refresh"}
+          </button>
         </div>
+
+        {summaryError && (
+          <div className="bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs p-3.5 rounded-xl text-center font-medium">
+            {summaryError}
+          </div>
+        )}
+
+        {isGeneratingSummary ? (
+          <div className="p-8 text-center text-xs text-muted-foreground bg-muted/10 border border-border rounded-2xl animate-pulse">
+            Summarizing transcription transcripts via AI service... Please hold.
+          </div>
+        ) : aiSummary.length > 0 ? (
+          <div className="space-y-4">
+            <div className="bg-gradient-to-br from-indigo-950/20 to-transparent border border-indigo-500/10 rounded-2xl p-5">
+              <p className="text-xs text-indigo-400 font-bold mb-1 uppercase tracking-wider">
+                {currentSession?.name || "Current Session"}
+              </p>
+              <div className="text-xs text-foreground space-y-3.5 leading-relaxed mt-2">
+                {aiSummary.map((paragraph, index) => (
+                  <p key={index}>{paragraph}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-10 text-center text-xs text-muted-foreground bg-muted/10 border border-border rounded-2xl space-y-2">
+            <p className="font-semibold text-foreground">No Summary Generated Yet</p>
+            <p>Click "Generate / Refresh" above to produce a structured summary of the live classroom transcript.</p>
+          </div>
+        )}
       </div>
     );
   }
