@@ -1,8 +1,9 @@
 # MeetPulse
 
-**MeetPulse** is an AI-powered meeting intelligence platform that transforms presentations into interactive, measurable, and data-driven conversations. It works alongside the video conferencing tools your organisation already uses — Zoom, Microsoft Teams, or Google Meet — and adds the intelligence layer that those platforms are missing.
+**GitHub Repository:** [https://github.com/Nithilaa0305/MeetPulse/tree/main](https://github.com/Nithilaa0305/MeetPulse/tree/main)
+**Video Submission:** [https://youtu.be/-z7bS4OsIfM](https://youtu.be/-z7bS4OsIfM)
 
-Live: [https://meet-pulse-beta.vercel.app](https://meet-pulse-beta.vercel.app)
+**MeetPulse** is an AI-powered meeting intelligence platform that transforms presentations into interactive, measurable, and data-driven conversations. It works alongside the video conferencing tools your organisation already uses — Zoom, Microsoft Teams, or Google Meet — and adds the intelligence layer that those platforms are missing.
 
 ---
 
@@ -40,6 +41,10 @@ For organisations where managers and team leads present to employees in meetings
 
 ## Core Features
 
+### Authentication & Access Control
+
+Account creation is restricted to ensure organizational security. A person can sign up for an account (as a presenter or administrator) **only if they have been explicitly added to the system by an admin**. Participants joining a live session do not need an account.
+
 ### Real-Time Presentation Engine
 
 Presenters upload their materials — PDF, PPTX, or DOCX — and MeetPulse renders them inside the platform. Slide navigation is broadcast live to all participants, who follow in real time. Participants can temporarily detach from the presenter's view to review an earlier slide and re-sync with one click.
@@ -49,8 +54,8 @@ Presenters upload their materials — PDF, PPTX, or DOCX — and MeetPulse rende
 During a session, the presenter has access to:
 
 - **Live Q&A** — Participants submit questions at any time. MeetPulse uses AI to automatically group similar questions together so the presenter is not overwhelmed by duplicates.
-- **Polls** — The presenter launches a poll mid-session. Votes are collected and displayed in real time.
-- **Quizzes** — AI-generated multiple-choice questions, derived from the session's transcript, are sent to participants. Results are reported to the presenter immediately.
+- **Polls** — The presenter launches a poll mid-session to gather immediate feedback. Votes are collected and displayed in real time.
+- **Quizzes** — AI-generated multiple-choice quizzes, derived automatically from the session's transcript and presentation materials, are sent to participants to test comprehension. Results are reported to the presenter immediately.
 - **Pulse Checks** — Quick comprehension checks that surface confusion or confidence levels across the audience.
 - **Reactions** — Participants send emoji reactions that appear on the presenter's view, providing instant ambient feedback.
 
@@ -60,7 +65,7 @@ MeetPulse captures a live transcript of the session using the browser's speech r
 
 - A **lecture summary** is generated — a structured, readable recap of what was covered.
 - **Study notes** are generated for participants — formal definitions, key concepts, and examples based on the material presented.
-- An **AI chatbot** is available to participants during the session to answer questions about the content.
+- An **AI chatbot** is available to participants during the session. It actively reads the uploaded PDF materials and session transcript to accurately answer specific questions about the presentation content in real time.
 
 These AI features are powered by OpenRouter (Gemma), OpenAI (GPT-4o-mini), and Google Gemini, with automatic fallback between providers.
 
@@ -86,9 +91,56 @@ Session analytics are available to both presenters and administrators:
 Participants do not need a MeetPulse account. They join a session by:
 
 1. Scanning a QR code displayed by the presenter, or
-2. Entering a meeting ID at [https://meet-pulse-beta.vercel.app/join](https://meet-pulse-beta.vercel.app/join)
+2. Entering a meeting ID on the join page (`/join`).
 
 They are immediately taken into the live session with full access to slides, Q&A, polls, and reactions.
+
+---
+
+## Hackathon Submission Details
+
+### Tech Stack Used
+- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Zustand
+- **Backend:** Node.js, Express, Socket.IO
+- **Database & Auth:** Supabase (PostgreSQL, Storage)
+- **AI Integrations:** OpenRouter (Gemma 4), Google Gemini, Web Speech API
+
+### Deployment Details
+- **Frontend:** Local Development (Vite)
+- **Backend:** Local Development (Node.js/Socket.IO)
+- **Database:** Supabase Managed PostgreSQL (Note: Live deployment via Vercel was omitted due to synchronization limitations with serverless websockets).
+
+### Architecture / System Overview
+```text
+┌─────────────────────────────┐         ┌──────────────────────────────┐
+│      Frontend (Vite/React)  │         │   Backend (Node.js / Express) │
+│          (Local)            │◄───────►│          (Local)              │
+└─────────────────────────────┘         └──────────────────────────────┘
+              │                                         │
+              └──────────────┬──────────────────────────┘
+                             │
+              ┌──────────────▼──────────────┐
+              │         Supabase             │
+              │  Auth · PostgreSQL · Storage │
+              └─────────────────────────────┘
+```
+The application uses a separated architecture where the frontend handles all UI, state, and direct AI API calls. The backend acts as a minimal stateful WebSocket server for real-time synchronization between presenters and participants. Supabase provides persistent storage and authentication. We do not use hardware/IoT input; all interactions occur via the web application.
+
+### Technical Challenges & Creative Solutions
+- **Real-Time Synchronization:** Ensuring late-joining participants sync perfectly to the ongoing session. We solved this by using an in-memory session state on the backend to immediately broadcast current state upon connection.
+- **AI Provider Resiliency:** Relying on single AI providers can lead to failure. We implemented an automatic fallback mechanism between OpenRouter and Google Gemini to guarantee summary generation.
+- **Meaningful Attendance:** Traditional attendance is a binary state. We engineered an engagement score algorithm that evaluates actual interaction (polls, Q&A, reactions) for a richer participation metric.
+- **Client-Side Document Rendering:** Processing PDFs and slides on the server is expensive. We leveraged `pdfjs-dist` and other client-side libraries to render materials directly in the browser, minimizing server cost and latency.
+
+### Scope Delivered
+- **Fully Implemented:** Real-time presentation engine, live audience engagement tools, AI transcription & summaries, smart attendance, role-based dashboards.
+- **Partially Implemented:** Native PPTX/DOCX rendering is functional but may have formatting limitations on complex files (converted to PDF/Canvas when needed).
+- **Not Implemented by Choice:** Integration with external calendar systems (e.g., Google Calendar) was omitted to focus entirely on the live session experience.
+- **Future Implementation:** In-app video calling to remove the need for external tools like Zoom or Google Meet entirely.
+
+### Anything Else Judges Should Note
+- **API Keys:** The AI features (summaries, chatbot, quizzes) require valid OpenRouter or Gemini API keys configured in the `.env` file to function completely. The app falls back to mocked content if keys are invalid or missing.
+- **Microphone Permissions:** Presenters must grant microphone access for the live transcription engine to capture spoken content.
 
 ---
 

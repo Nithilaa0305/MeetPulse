@@ -1,5 +1,7 @@
 # Setup Guide — MeetPulse
 
+**GitHub Repository:** [https://github.com/Nithilaa0305/MeetPulse/tree/main](https://github.com/Nithilaa0305/MeetPulse/tree/main)
+
 This document covers everything needed to run MeetPulse locally and deploy it to production.
 
 ---
@@ -18,7 +20,7 @@ This document covers everything needed to run MeetPulse locally and deploy it to
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/sujeevanferos/MeetPulse.git
+git clone https://github.com/Nithilaa0305/MeetPulse.git
 cd MeetPulse
 ```
 
